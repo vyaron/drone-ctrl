@@ -1,23 +1,70 @@
-import { useState, useEffect, useRef } from 'react';
-import { SEV, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, project, tickSensors, rand, SENSORS_BASE } from '../utils/droneUtils';
+import { useState, useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
+import { 
+  SEV, 
+  LAT_MIN, 
+  LAT_MAX, 
+  LON_MIN, 
+  LON_MAX, 
+  project, 
+  tickSensors, 
+  rand, 
+  SENSORS_BASE,
+  type Drone,
+  type SeverityLevel
+} from '../utils/droneUtils';
 
 const GMAP_API_KEY = 'AIzaSyCaQVlcIeYewnFSmm3xkL2d3HHy9xhYbz4';
 
+// Extend Window interface for Google Maps callback
+declare global {
+  interface Window {
+    initGoogleMap?: () => void;
+    google?: typeof google;
+  }
+}
+
+interface TrailPoint {
+  lat: number;
+  lon: number;
+  ts: number;
+}
+
 // Factory to create DroneOverlay class (needs Google Maps API loaded first)
-let DroneOverlayClass = null;
+let DroneOverlayClass: (new (
+  position: google.maps.LatLng,
+  color: string,
+  severity: SeverityLevel,
+  isSelected: boolean,
+  onClick: () => void
+) => google.maps.OverlayView & {
+  update: (position: google.maps.LatLng, color: string, severity: SeverityLevel, isSelected: boolean) => void;
+}) | null = null;
+
 function getDroneOverlayClass() {
   if (DroneOverlayClass) return DroneOverlayClass;
   if (!window.google?.maps?.OverlayView) return null;
   
   DroneOverlayClass = class extends window.google.maps.OverlayView {
-    constructor(position, color, severity, isSelected, onClick) {
+    position: google.maps.LatLng;
+    color: string;
+    severity: SeverityLevel;
+    isSelected: boolean;
+    onClick: () => void;
+    div: HTMLDivElement | null = null;
+
+    constructor(
+      position: google.maps.LatLng, 
+      color: string, 
+      severity: SeverityLevel, 
+      isSelected: boolean, 
+      onClick: () => void
+    ) {
       super();
       this.position = position;
       this.color = color;
       this.severity = severity;
       this.isSelected = isSelected;
       this.onClick = onClick;
-      this.div = null;
     }
     
     onAdd() {
@@ -27,7 +74,7 @@ function getDroneOverlayClass() {
       this.div.addEventListener('click', () => this.onClick?.());
       this.updateContent();
       const panes = this.getPanes();
-      panes.overlayMouseTarget.appendChild(this.div);
+      panes?.overlayMouseTarget.appendChild(this.div);
     }
     
     updateContent() {
@@ -62,7 +109,7 @@ function getDroneOverlayClass() {
       `;
     }
     
-    update(position, color, severity, isSelected) {
+    update(position: google.maps.LatLng, color: string, severity: SeverityLevel, isSelected: boolean) {
       this.position = position;
       const needsRedraw = this.color !== color || this.severity !== severity || this.isSelected !== isSelected;
       this.color = color;
@@ -94,25 +141,40 @@ function getDroneOverlayClass() {
   return DroneOverlayClass;
 }
 
-function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const hoverRef = useRef(null);
+interface MapViewProps {
+  dronesRef: MutableRefObject<Drone[]>;
+  selected: Drone | null;
+  onSelect: (drone: Drone | null) => void;
+  filterFn: (drone: Drone) => boolean;
+  mode?: 'canvas' | 'google';
+}
+
+function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }: MapViewProps): ReactElement {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hoverRef = useRef<Drone | null>(null);
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
-  const [hover, setHover] = useState(null);
-  const [dims, setDims] = useState({ w: 800, h: 500 });
-  const lastTsRef = useRef(null);
-  const googleMapRef = useRef(null);
-  const googleMapInstanceRef = useRef(null);
-  const [zoomLevel, setZoomLevel] = useState(18);
-  const trailsRef = useRef(new Map()); // drone.id -> [{lat, lon, ts}, ...]
-  const [showTrails, setShowTrails] = useState(true);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const [hover, setHover] = useState<Drone | null>(null);
+  const dimsRef = useRef({ w: 800, h: 500 });
+  const [, forceUpdate] = useState(0);
+  const lastTsRef = useRef<number | null>(null);
+  const googleMapRef = useRef<HTMLDivElement>(null);
+  const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
+  const zoomLevelRef = useRef(18);
+  const trailsRef = useRef<Map<string, TrailPoint[]>>(new Map());
+  const showTrailsRef = useRef(false);
+  const [showTrails, setShowTrails] = useState(false);
+  showTrailsRef.current = showTrails;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   useEffect(() => {
     const ro = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
-      setDims({ w: Math.floor(width), h: Math.floor(height) });
+      dimsRef.current = { w: Math.floor(width), h: Math.floor(height) };
     });
     if (containerRef.current) ro.observe(containerRef.current);
     return () => ro.disconnect();
@@ -142,31 +204,50 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
           d.lon = rand(35.391, 35.395);
           d.targetLat = rand(31.589, 31.593);
           d.targetLon = rand(35.391, 35.395);
+          d.vLat = 0;
+          d.vLon = 0;
         }
       });
     }
   }, [mode, dronesRef]);
 
   useEffect(() => {
-    let raf;
-    function draw(ts) {
+    let raf: number;
+    let isRunning = true;
+    
+    function draw(ts: number) {
+      if (!isRunning) return;
+      if (modeRef.current !== 'canvas') {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       const ctx = canvas.getContext("2d");
-      const { w, h } = dims;
-      canvas.width = w;
-      canvas.height = h;
+      if (!ctx) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      const { w, h } = dimsRef.current;
+      // Only resize canvas if dimensions changed
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
       const drones = dronesRef.current;
+      const selected = selectedRef.current;
+      const showTrails = showTrailsRef.current;
 
       // Move drones each frame
       const dt = lastTsRef.current ? Math.min(ts - lastTsRef.current, 100) : 16;
       lastTsRef.current = ts;
 
-      // Separate bounds for tactical (spread) vs satellite (tight)
-      const isSatellite = mode === 'google';
-      const BOUNDS = isSatellite 
-        ? { latMin: 31.589, latMax: 31.593, lonMin: 35.391, lonMax: 35.395, threshold: 0.001 }
-        : { latMin: 31.35, latMax: 31.85, lonMin: 35.15, lonMax: 35.65, threshold: 0.03 };
+      // Tactical mode bounds (spread drones across the map)
+      const BOUNDS = { latMin: 31.35, latMax: 31.85, lonMin: 35.15, lonMax: 35.65, threshold: 0.03 };
 
       drones.forEach(d => {
         if (d.status !== "active") return;
@@ -177,13 +258,16 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
           d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
           d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
         }
-        // Speed factor based on zoom level (higher zoom = slower visual movement)
-        const zoomSpeedFactor = isSatellite ? Math.pow(0.5, (zoomLevel - 18) / 2) * 0.25 : 1;
-        const spdMult = isSatellite ? 0.0015 : 0.02;
-        d.vLat += (dLat / (dist || 1)) * d.spd * spdMult * zoomSpeedFactor;
-        d.vLon += (dLon / (dist || 1)) * d.spd * spdMult * zoomSpeedFactor;
+        // Speed calculation for tactical view - smooth movement
+        const spdMult = 0.00002;
+        const accel = 0.0001;
+        d.vLat += (dLat / (dist || 1)) * d.spd * accel;
+        d.vLon += (dLon / (dist || 1)) * d.spd * accel;
+        // Apply friction to prevent runaway velocity
+        d.vLat *= 0.98;
+        d.vLon *= 0.98;
         const curSpd = Math.sqrt(d.vLat * d.vLat + d.vLon * d.vLon);
-        const maxSpd = d.spd * zoomSpeedFactor * (isSatellite ? 0.15 : 1);
+        const maxSpd = d.spd * spdMult;
         if (curSpd > maxSpd) { d.vLat = d.vLat / curSpd * maxSpd; d.vLon = d.vLon / curSpd * maxSpd; }
         d.lat += d.vLat * dt;
         d.lon += d.vLon * dt;
@@ -365,7 +449,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
             const droneAlpha = selected && !isSel ? 0.15 : 1;
             
             trail.forEach((pt, idx) => {
-              if (idx === trail.length - 1) return; // Skip current position (drone is there)
+              if (idx === trail!.length - 1) return; // Skip current position (drone is there)
               const age = ts - pt.ts;
               const alpha = Math.max(0, 1 - age / TRAIL_DURATION) * 0.6 * droneAlpha;
               
@@ -447,30 +531,53 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       raf = requestAnimationFrame(draw);
     }
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, [selected, dims, dronesRef, zoomLevel, mode, showTrails]);
+    return () => {
+      isRunning = false;
+      cancelAnimationFrame(raf);
+    };
+  }, [dronesRef]);
 
   // Load Google Maps API
   useEffect(() => {
     if (mode !== 'google') return;
-    if (window.google?.maps?.Map) return;
     
-    // Define callback for when API is ready
-    window.initGoogleMap = () => {
-      if (googleMapRef.current && !googleMapInstanceRef.current) {
+    const initMap = () => {
+      if (googleMapRef.current && !googleMapInstanceRef.current && window.google?.maps?.Map) {
         googleMapInstanceRef.current = new window.google.maps.Map(googleMapRef.current, {
           center: { lat: 31.591, lng: 35.393 },
           zoom: 18,
           mapTypeId: 'hybrid',
         });
-        // Track zoom level changes
         googleMapInstanceRef.current.addListener('zoom_changed', () => {
-          const z = googleMapInstanceRef.current.getZoom();
-          console.log('Google Maps zoom:', z);
-          setZoomLevel(z);
+          const z = googleMapInstanceRef.current?.getZoom();
+          if (z !== undefined) {
+            zoomLevelRef.current = z;
+          }
         });
       }
     };
+    
+    // If Google Maps is already loaded, initialize immediately
+    if (window.google?.maps?.Map) {
+      initMap();
+      return;
+    }
+    
+    // Check if script is already in the page
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      // Wait for it to load
+      const checkLoaded = setInterval(() => {
+        if (window.google?.maps?.Map) {
+          clearInterval(checkLoaded);
+          initMap();
+        }
+      }, 100);
+      return () => clearInterval(checkLoaded);
+    }
+    
+    // Load the script
+    window.initGoogleMap = initMap;
     
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${GMAP_API_KEY}&callback=initGoogleMap`;
@@ -481,36 +588,24 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
     return () => {};
   }, [mode]);
 
-  // Initialize Google Map (if API already loaded)
-  useEffect(() => {
-    if (mode !== 'google' || !googleMapRef.current || !window.google?.maps?.Map) return;
-    
-    if (!googleMapInstanceRef.current) {
-      googleMapInstanceRef.current = new window.google.maps.Map(googleMapRef.current, {
-        center: { lat: 31.591, lng: 35.393 },
-        zoom: 18,
-        mapTypeId: 'hybrid',
-      });
-      // Track zoom level changes
-      googleMapInstanceRef.current.addListener('zoom_changed', () => {
-        const z = googleMapInstanceRef.current.getZoom();
-        console.log('Google Maps zoom:', z);
-        setZoomLevel(z);
-      });
-    }
-  }, [mode]);
-
   // Update markers on Google Map - use custom HTML overlay for pulse animation
-  const droneMarkersRef = useRef(new Map()); // drone.id -> { overlay, line }
+  const droneMarkersRef = useRef<Map<string, { 
+    overlay: google.maps.OverlayView & { update: (position: google.maps.LatLng, color: string, severity: SeverityLevel, isSelected: boolean) => void };
+    line: google.maps.Polyline;
+  }>>(new Map());
   
   useEffect(() => {
     if (mode !== 'google') return;
     
-    let animFrame;
+    let animFrame: number;
     let lastUpdate = 0;
+    let lastTs = 0;
     const UPDATE_INTERVAL = 50; // Update every 50ms for smoother movement
     
-    const updateMarkers = (timestamp) => {
+    // Satellite view bounds (tight cluster)
+    const BOUNDS = { latMin: 31.589, latMax: 31.593, lonMin: 35.391, lonMax: 35.395, threshold: 0.0003 };
+    
+    const updateMarkers = (timestamp: number) => {
       const map = googleMapInstanceRef.current;
       const DroneOverlay = getDroneOverlayClass();
       
@@ -524,7 +619,48 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
         animFrame = requestAnimationFrame(updateMarkers);
         return;
       }
+      
+      // Move drones
+      const dt = lastTs ? Math.min(timestamp - lastTs, 100) : 16;
+      lastTs = timestamp;
       lastUpdate = timestamp;
+      
+      const drones = dronesRef.current;
+      drones.forEach(d => {
+        if (d.status !== "active") return;
+        
+        // Reposition drones outside satellite view bounds
+        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax || d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) {
+          d.lat = rand(BOUNDS.latMin, BOUNDS.latMax);
+          d.lon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
+          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
+          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
+          d.vLat = 0;
+          d.vLon = 0;
+        }
+        
+        const dLat = d.targetLat - d.lat;
+        const dLon = d.targetLon - d.lon;
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (dist < BOUNDS.threshold) {
+          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
+          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
+        }
+        // Movement for satellite view - very slow for realistic effect
+        const accel = 0.00000005;
+        d.vLat += (dLat / (dist || 1)) * d.spd * accel;
+        d.vLon += (dLon / (dist || 1)) * d.spd * accel;
+        d.vLat *= 0.99;
+        d.vLon *= 0.99;
+        const curSpd = Math.sqrt(d.vLat * d.vLat + d.vLon * d.vLon);
+        const maxSpd = d.spd * 0.0000002;
+        if (curSpd > maxSpd) { d.vLat = d.vLat / curSpd * maxSpd; d.vLon = d.vLon / curSpd * maxSpd; }
+        d.lat += d.vLat * dt;
+        d.lon += d.vLon * dt;
+        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax) { d.vLat *= -1; d.lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, d.lat)); }
+        if (d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) { d.vLon *= -1; d.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, d.lon)); }
+        d.heading = (Math.atan2(d.vLon, d.vLat) * 180 / Math.PI + 360) % 360;
+      });
       
       const fn = filterFnRef.current;
       const visibleDrones = dronesRef.current.filter(d => d.status === "active" && (fn ? fn(d) : true));
@@ -552,7 +688,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
         if (!markers) {
           // Create new markers for this drone
           const overlay = new DroneOverlay(
-            new window.google.maps.LatLng(drone.lat, drone.lon),
+            new window.google!.maps.LatLng(drone.lat, drone.lon),
             cfg.color,
             drone.severity,
             isSel,
@@ -560,7 +696,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
           );
           overlay.setMap(map);
           
-          const line = new window.google.maps.Polyline({
+          const line = new window.google!.maps.Polyline({
             path: [
               { lat: drone.lat, lng: drone.lon },
               { lat: endLat, lng: endLon }
@@ -577,7 +713,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
         } else {
           // Update existing markers smoothly
           markers.overlay.update(
-            new window.google.maps.LatLng(drone.lat, drone.lon),
+            new window.google!.maps.LatLng(drone.lat, drone.lon),
             cfg.color,
             drone.severity,
             isSel
@@ -617,7 +753,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
   useEffect(() => {
     if (mode !== 'google') return;
     
-    const sensorMarkersLocal = [];
+    const sensorMarkersLocal: google.maps.Circle[] = [];
     
     const addSensors = () => {
       const map = googleMapInstanceRef.current;
@@ -635,7 +771,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       ];
       
       satelliteSensors.forEach(sensor => {
-        const sensorCircle = new window.google.maps.Circle({
+        const sensorCircle = new window.google!.maps.Circle({
           center: { lat: sensor.lat, lng: sensor.lon },
           radius: 4,
           map: map,
@@ -656,14 +792,17 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
     };
   }, [mode]);
 
-  function hitTest(e) {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (dims.w / rect.width);
-    const my = (e.clientY - rect.top) * (dims.h / rect.height);
+  function hitTest(e: React.MouseEvent<HTMLCanvasElement>): Drone | null {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const { w, h } = dimsRef.current;
+    const mx = (e.clientX - rect.left) * (w / rect.width);
+    const my = (e.clientY - rect.top) * (h / rect.height);
     const fn = filterFnRef.current;
     const testable = dronesRef.current.filter(d => d.status === "active" && (fn ? fn(d) : true));
     for (const drone of testable) {
-      const { x, y } = project(drone.lat, drone.lon, dims.w, dims.h);
+      const { x, y } = project(drone.lat, drone.lon, w, h);
       if (Math.hypot(mx - x, my - y) < 16) return drone;
     }
     return null;
@@ -674,7 +813,12 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       {/* Trail Toggle Button (canvas mode only) */}
       {mode === 'canvas' && (
         <button
-          onClick={() => setShowTrails(t => !t)}
+          onClick={() => {
+            setShowTrails(t => {
+              if (t) trailsRef.current.clear(); // Clear trails when turning off
+              return !t;
+            });
+          }}
           style={{
             position: 'absolute',
             top: 12,
@@ -722,10 +866,11 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       {/* Hover tooltip (canvas mode only) */}
       {mode === 'canvas' && hover && (() => {
         const cfg = SEV[hover.severity];
-        const { x, y } = project(hover.lat, hover.lon, dims.w, dims.h);
+        const { w, h } = dimsRef.current;
+        const { x, y } = project(hover.lat, hover.lon, w, h);
         const rect = containerRef.current?.getBoundingClientRect();
-        const sx = rect ? rect.width / dims.w : 1;
-        const sy = rect ? rect.height / dims.h : 1;
+        const sx = rect ? rect.width / w : 1;
+        const sy = rect ? rect.height / h : 1;
         return (
           <div style={{ 
             position: "absolute", 

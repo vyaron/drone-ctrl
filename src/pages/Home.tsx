@@ -1,4 +1,6 @@
-function Home() {
+import type { ReactElement } from 'react';
+
+function Home(): ReactElement {
   return (
     <div className="page" style={{ position: 'relative', overflow: 'hidden' }}>
       <img 
@@ -50,7 +52,7 @@ function Home() {
       </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default Home
+export default Home;

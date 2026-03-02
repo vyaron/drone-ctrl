@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import DroneRow from '../components/DroneRow';
 import MapView from '../components/MapView';
@@ -10,15 +10,17 @@ import {
   spawnDrone, 
   formatTime, 
   pick, 
-  randInt 
+  randInt,
+  type Drone,
+  type SeverityLevel
 } from '../utils/droneUtils';
 
-function Live() {
-  const dronesRef = useRef([]);
-  const [drones, setDrones] = useState([]);
-  const [filter, setFilter] = useState("all");
+function Live(): ReactElement {
+  const dronesRef = useRef<Drone[]>([]);
+  const [drones, setDrones] = useState<Drone[]>([]);
+  const [filter, setFilter] = useState<'all' | SeverityLevel>("all");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState<Drone | null>(null);
   const [now, setNow] = useState(Date.now());
   const [running, setRunning] = useState(true);
   const [clock, setClock] = useState("");
@@ -51,7 +53,7 @@ function Live() {
   // Initialize drones
   useEffect(() => {
     const t = Date.now();
-    const guaranteed = ["critical", "high", "medium", "low"].map(sev => {
+    const guaranteed = (["critical", "high", "medium", "low"] as SeverityLevel[]).map(sev => {
       const d = spawnDrone(t - randInt(20000, 80000));
       return { ...d, severity: sev, model: pick(DRONE_MODELS[sev]) };
     });
@@ -76,7 +78,7 @@ function Live() {
     const id = setInterval(() => {
       const cutoff = Date.now() - WINDOW_SEC * 1000 * 2.5;
       dronesRef.current = dronesRef.current
-        .map(d => d.status === "active" && Date.now() > d.detectedMs + d.durationMs ? { ...d, status: "left" } : d)
+        .map(d => d.status === "active" && Date.now() > d.detectedMs + d.durationMs ? { ...d, status: "left" as const } : d)
         .filter(d => d.detectedMs > cutoff);
     }, 600);
     return () => clearInterval(id);
@@ -95,15 +97,16 @@ function Live() {
   }).sort((a, b) => {
     if (a.status === "active" && b.status !== "active") return -1;
     if (b.status === "active" && a.status !== "active") return 1;
-    return ({ critical: 0, high: 1, medium: 2, low: 3 })[a.severity] - ({ critical: 0, high: 1, medium: 2, low: 3 })[b.severity];
+    const sevOrder: Record<SeverityLevel, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    return sevOrder[a.severity] - sevOrder[b.severity];
   });
 
-  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  const counts: Record<SeverityLevel, number> = { critical: 0, high: 0, medium: 0, low: 0 };
   drones.filter(d => d.status === "active").forEach(d => counts[d.severity]++);
   const totalActive = Object.values(counts).reduce((a, b) => a + b, 0);
   
   // Filtered active count for "X ON MAP" display
-  const filterFn = d => {
+  const filterFn = (d: Drone): boolean => {
     if (filter !== "all" && d.severity !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -143,7 +146,7 @@ function Live() {
           }}/>
         </div>
         <div style={{ width: 1, height: 18, background: "rgba(0,212,255,0.15)", margin: "0 4px" }}/>
-        {["critical", "high", "medium", "low"].map(s => (
+        {(["critical", "high", "medium", "low"] as SeverityLevel[]).map(s => (
           <div key={s} style={{ 
             display: "flex", 
             alignItems: "center", 
@@ -221,7 +224,7 @@ function Live() {
           {currentPath === "timeline" ? "5 MIN WINDOW" : `${filteredActiveCount} ON MAP`}
         </span>
         <div style={{ display: "flex", gap: 3, marginRight: 10 }}>
-          {["all", "critical", "high", "medium", "low"].map(f => (
+          {(["all", "critical", "high", "medium", "low"] as const).map(f => (
             <button 
               key={f} 
               onClick={() => setFilter(f)} 

@@ -1,5 +1,16 @@
-function Reports() {
-  const mockData = [
+import type { ReactElement } from 'react';
+
+interface ReportRow {
+  date: string;
+  detected: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+function Reports(): ReactElement {
+  const mockData: ReportRow[] = [
     { date: '2024-03-01', detected: 47, critical: 3, high: 8, medium: 15, low: 21 },
     { date: '2024-02-29', detected: 52, critical: 5, high: 12, medium: 18, low: 17 },
     { date: '2024-02-28', detected: 38, critical: 2, high: 6, medium: 12, low: 18 },
@@ -63,7 +74,7 @@ function Reports() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default Reports
+export default Reports;

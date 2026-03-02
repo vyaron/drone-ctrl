@@ -1,67 +1,60 @@
-.app-container {
+.app {
   display: flex;
-  flex-direction: column;
   height: 100vh;
   background: #070a0f;
 }
 
-.main-nav {
+.sidebar {
+  width: 100px;
+  background: rgba(0, 5, 12, 0.98);
+  border-right: 1px solid rgba(0, 212, 255, 0.12);
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  height: 50px;
-  background: rgba(0, 5, 12, 0.95);
-  border-bottom: 1px solid rgba(0, 212, 255, 0.12);
+  flex-direction: column;
   flex-shrink: 0;
 }
 
-.nav-brand {
+.logo {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+  text-align: center;
+}
+
+.logo img {
+  width: 40px;
+  height: auto;
+}
+
+.nav {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  padding: 12px 0;
 }
 
-.brand-text {
-  font-family: 'Exo 2', sans-serif;
-  font-weight: 900;
-  font-size: 19px;
-  letter-spacing: 4px;
-  color: #00d4ff;
-}
-
-.brand-accent {
-  color: #00ff9d;
-}
-
-.nav-links {
-  display: flex;
-  gap: 4px;
-  margin-left: 30px;
-}
-
-.nav-links a {
-  padding: 8px 16px;
+.nav-link {
+  padding: 10px 8px;
   text-decoration: none;
   color: #8899aa;
-  font-size: 13px;
-  letter-spacing: 2px;
+  font-size: 10px;
+  letter-spacing: 1px;
   font-weight: 700;
-  border-radius: 4px;
   transition: all 0.15s;
   text-transform: uppercase;
+  border-left: 2px solid transparent;
+  text-align: center;
 }
 
-.nav-links a:hover {
+.nav-link:hover {
   color: #7ecfff;
-  background: rgba(0, 212, 255, 0.06);
+  background: rgba(0, 212, 255, 0.04);
 }
 
-.nav-links a.active {
+.nav-link.active {
   color: #00d4ff;
-  background: rgba(0, 212, 255, 0.1);
-  border-bottom: 2px solid #00d4ff;
+  background: rgba(0, 212, 255, 0.08);
+  border-left-color: #00d4ff;
 }
 
-.main-content {
+.main {
   flex: 1;
   overflow: hidden;
 }
