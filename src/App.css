@@ -1,0 +1,146 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #070a0f;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 50px;
+  background: rgba(0, 5, 12, 0.95);
+  border-bottom: 1px solid rgba(0, 212, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+}
+
+.brand-text {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 900;
+  font-size: 19px;
+  letter-spacing: 4px;
+  color: #00d4ff;
+}
+
+.brand-accent {
+  color: #00ff9d;
+}
+
+.nav-links {
+  display: flex;
+  gap: 4px;
+  margin-left: 30px;
+}
+
+.nav-links a {
+  padding: 8px 16px;
+  text-decoration: none;
+  color: #8899aa;
+  font-size: 13px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  border-radius: 4px;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.nav-links a:hover {
+  color: #7ecfff;
+  background: rgba(0, 212, 255, 0.06);
+}
+
+.nav-links a.active {
+  color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+  border-bottom: 2px solid #00d4ff;
+}
+
+.main-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Page styles */
+.page {
+  height: 100%;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  color: #00d4ff;
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: #8899aa;
+  letter-spacing: 2px;
+}
+
+.card {
+  background: rgba(0, 212, 255, 0.04);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 13px;
+  color: #00d4ff88;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.card-content {
+  color: #7ecfff;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: rgba(0, 212, 255, 0.04);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: 6px;
+  padding: 16px 20px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #00d4ff88;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #00d4ff;
+}
+
+.stat-value.success { color: #30d158; }
+.stat-value.warning { color: #ffd60a; }
+.stat-value.danger { color: #ff2d55; }
