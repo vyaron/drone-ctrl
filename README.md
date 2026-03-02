@@ -1,16 +1,59 @@
-# React + Vite
+# R2 Drone Control
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  <img src="public/logo.png" alt="R2 Logo" width="120" />
+</p>
 
-Currently, two official plugins are available:
+Real-time drone detection and tracking dashboard with tactical and satellite map views.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Live Timeline** — Real-time event feed with severity filtering and drone details
+- **Tactical View** — Canvas-based radar display with sensor coverage and drone trails
+- **Satellite Map** — Google Maps integration with animated drone markers and movement tracking
+- **Multi-Sensor Detection** — Simulated sensor network with patrol capabilities
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- React 18 + TypeScript
+- Vite
+- React Router v6
+- Google Maps JavaScript API
+- Canvas 2D for tactical rendering
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Views
+
+| View | Description |
+|------|-------------|
+| **Home** | Dashboard overview |
+| **Live → Timeline** | Scrolling event feed with drone detection alerts |
+| **Live → Tactical** | Radar-style map with real-time drone positions |
+| **Live → Map** | Satellite view with Google Maps |
+| **Reports** | Historical data analysis |
+
+## Configuration
+
+Google Maps API key is configured in `src/components/MapView.tsx`. For production use, replace with your own API key.
+
+## Deployment
+
+Automatically deploys to GitHub Pages on push to `main` branch.
+
+---
+
+<p align="center">
+  <sub>Built with ⚡ by R2</sub>
+</p>
