@@ -6,6 +6,8 @@
 
 Real-time drone detection and tracking dashboard with tactical and satellite map views.
 
+**[▶ Live Demo](https://vyaron.github.io/drone-ctrl)**
+
 ## Features
 
 - **Live Timeline** — Real-time event feed with severity filtering and drone details
