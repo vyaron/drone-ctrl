@@ -3,6 +3,97 @@ import { SEV, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, project, tickSensors, rand, SE
 
 const GMAP_API_KEY = 'AIzaSyCaQVlcIeYewnFSmm3xkL2d3HHy9xhYbz4';
 
+// Factory to create DroneOverlay class (needs Google Maps API loaded first)
+let DroneOverlayClass = null;
+function getDroneOverlayClass() {
+  if (DroneOverlayClass) return DroneOverlayClass;
+  if (!window.google?.maps?.OverlayView) return null;
+  
+  DroneOverlayClass = class extends window.google.maps.OverlayView {
+    constructor(position, color, severity, isSelected, onClick) {
+      super();
+      this.position = position;
+      this.color = color;
+      this.severity = severity;
+      this.isSelected = isSelected;
+      this.onClick = onClick;
+      this.div = null;
+    }
+    
+    onAdd() {
+      this.div = document.createElement('div');
+      this.div.style.position = 'absolute';
+      this.div.style.cursor = 'pointer';
+      this.div.addEventListener('click', () => this.onClick?.());
+      this.updateContent();
+      const panes = this.getPanes();
+      panes.overlayMouseTarget.appendChild(this.div);
+    }
+    
+    updateContent() {
+      if (!this.div) return;
+      const rings = this.severity === 'critical' ? 3 : this.severity === 'high' ? 2 : 1;
+      const size = 60;
+      const center = size / 2;
+      
+      this.div.innerHTML = `
+        <svg width="${size}" height="${size}" style="overflow:visible;position:absolute;left:-${center}px;top:-${center}px;">
+          <style>
+            @keyframes pulse-ring {
+              0% { r: 8; opacity: 0.6; }
+              100% { r: 22; opacity: 0; }
+            }
+            .pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+            .pulse-ring-1 { animation-delay: 0s; }
+            .pulse-ring-2 { animation-delay: 0.66s; }
+            .pulse-ring-3 { animation-delay: 1.33s; }
+          </style>
+          ${Array.from({length: rings}, (_, i) => `
+            <circle class="pulse-ring pulse-ring-${i+1}" cx="${center}" cy="${center}" r="8" 
+              fill="none" stroke="${this.color}" stroke-width="1.5"/>
+          `).join('')}
+          <circle cx="${center}" cy="${center}" r="${this.isSelected ? 8 : 6}" 
+            fill="${this.color}" 
+            stroke="${this.isSelected ? '#ffffff' : this.color}" 
+            stroke-width="${this.isSelected ? 2 : 1}"
+            style="filter: drop-shadow(0 0 ${this.isSelected ? 8 : 4}px ${this.color});"/>
+          ${this.isSelected ? `<circle cx="${center}" cy="${center}" r="13" fill="none" stroke="#ffffff" stroke-width="1.5"/>` : ''}
+        </svg>
+      `;
+    }
+    
+    update(position, color, severity, isSelected) {
+      this.position = position;
+      const needsRedraw = this.color !== color || this.severity !== severity || this.isSelected !== isSelected;
+      this.color = color;
+      this.severity = severity;
+      this.isSelected = isSelected;
+      if (needsRedraw) this.updateContent();
+      this.draw();
+    }
+    
+    draw() {
+      if (!this.div) return;
+      const overlayProjection = this.getProjection();
+      if (!overlayProjection) return;
+      const pos = overlayProjection.fromLatLngToDivPixel(this.position);
+      if (pos) {
+        this.div.style.left = pos.x + 'px';
+        this.div.style.top = pos.y + 'px';
+      }
+    }
+    
+    onRemove() {
+      if (this.div) {
+        this.div.parentNode?.removeChild(this.div);
+        this.div = null;
+      }
+    }
+  };
+  
+  return DroneOverlayClass;
+}
+
 function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -409,8 +500,8 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
     }
   }, [mode]);
 
-  // Update markers on Google Map - use persistent markers for smooth movement
-  const droneMarkersRef = useRef(new Map()); // drone.id -> { circle, line }
+  // Update markers on Google Map - use custom HTML overlay for pulse animation
+  const droneMarkersRef = useRef(new Map()); // drone.id -> { overlay, line }
   
   useEffect(() => {
     if (mode !== 'google') return;
@@ -421,8 +512,9 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
     
     const updateMarkers = (timestamp) => {
       const map = googleMapInstanceRef.current;
+      const DroneOverlay = getDroneOverlayClass();
       
-      if (!map || !window.google?.maps?.Circle) {
+      if (!map || !DroneOverlay) {
         animFrame = requestAnimationFrame(updateMarkers);
         return;
       }
@@ -441,7 +533,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       // Remove markers for drones that are no longer visible
       droneMarkersRef.current.forEach((markers, id) => {
         if (!visibleIds.has(id)) {
-          markers.circle.setMap(null);
+          markers.overlay.setMap(null);
           markers.line.setMap(null);
           droneMarkersRef.current.delete(id);
         }
@@ -451,10 +543,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
         const cfg = SEV[drone.severity];
         const isSel = selected?.id === drone.id;
         
-        // Smaller, fixed pixel-size appearance at zoom 18
-        const baseRadius = isSel ? 8 : 5; // meters at zoom 18
         const lineLength = 0.00015; // ~15m direction indicator
-        
         const endLat = drone.lat + Math.cos(drone.heading * Math.PI / 180) * lineLength;
         const endLon = drone.lon + Math.sin(drone.heading * Math.PI / 180) * lineLength;
         
@@ -462,19 +551,14 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
         
         if (!markers) {
           // Create new markers for this drone
-          const circle = new window.google.maps.Circle({
-            center: { lat: drone.lat, lng: drone.lon },
-            radius: baseRadius,
-            map: map,
-            fillColor: cfg.color,
-            fillOpacity: 0.9,
-            strokeColor: isSel ? '#ffffff' : cfg.color,
-            strokeWeight: isSel ? 2 : 1,
-            clickable: true,
-            zIndex: isSel ? 100 : drone.severity === 'critical' ? 90 : 50,
-          });
-          
-          circle.addListener('click', () => onSelect(drone));
+          const overlay = new DroneOverlay(
+            new window.google.maps.LatLng(drone.lat, drone.lon),
+            cfg.color,
+            drone.severity,
+            isSel,
+            () => onSelect(drone)
+          );
+          overlay.setMap(map);
           
           const line = new window.google.maps.Polyline({
             path: [
@@ -488,18 +572,16 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
             zIndex: isSel ? 99 : 49,
           });
           
-          markers = { circle, line };
+          markers = { overlay, line };
           droneMarkersRef.current.set(drone.id, markers);
         } else {
           // Update existing markers smoothly
-          markers.circle.setCenter({ lat: drone.lat, lng: drone.lon });
-          markers.circle.setRadius(baseRadius);
-          markers.circle.setOptions({
-            fillColor: cfg.color,
-            strokeColor: isSel ? '#ffffff' : cfg.color,
-            strokeWeight: isSel ? 2 : 1,
-            zIndex: isSel ? 100 : drone.severity === 'critical' ? 90 : 50,
-          });
+          markers.overlay.update(
+            new window.google.maps.LatLng(drone.lat, drone.lon),
+            cfg.color,
+            drone.severity,
+            isSel
+          );
           
           markers.line.setPath([
             { lat: drone.lat, lng: drone.lon },
@@ -524,7 +606,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }) {
       cancelAnimationFrame(animFrame);
       // Clean up all drone markers when switching away from google mode
       currentMarkers.forEach(markers => {
-        markers.circle.setMap(null);
+        markers.overlay.setMap(null);
         markers.line.setMap(null);
       });
       currentMarkers.clear();
