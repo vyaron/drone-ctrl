@@ -18,7 +18,7 @@ function App(): ReactElement {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="logo"><img src="/logo.png" alt="R2" /></div>
+        <div className="logo"><img src="./logo.png" alt="R2" /></div>
         <nav className="nav">
           {nav.map(n => (
             <Link key={n.id} to={`/${n.id}`} className={`nav-link ${path === n.id ? 'active' : ''}`}>{n.label}</Link>

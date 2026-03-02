@@ -4,7 +4,7 @@ function Home(): ReactElement {
   return (
     <div className="page" style={{ position: 'relative', overflow: 'hidden' }}>
       <img 
-        src="/sphere.svg" 
+        src="./sphere.svg" 
         alt="" 
         style={{ 
           position: 'absolute', 
