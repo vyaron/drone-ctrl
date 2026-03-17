@@ -10,6 +10,7 @@ interface DetailPanelProps {
 function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactElement | null {
   const [isVisible, setIsVisible] = useState(false);
   const [displayedDrone, setDisplayedDrone] = useState<Drone | null>(null);
+  const [, setTick] = useState(0);
   
   // Handle visibility animation
   useEffect(() => {
@@ -35,6 +36,7 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
     const interval = setInterval(() => {
       const updated = dronesRef.current.find(d => d.id === selected.id);
       if (updated) setDisplayedDrone(updated);
+      setTick(t => t + 1); // Force re-render for elapsed time
     }, 100);
     return () => clearInterval(interval);
   }, [selected, dronesRef]);

@@ -64,6 +64,7 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
       const rings = this.severity === 'critical' ? 3 : this.severity === 'high' ? 2 : 1;
       const size = 60;
       const center = size / 2;
+      const iconSize = this.isSelected ? 32 : 26;
       
       this.div.innerHTML = `
         <svg width="${size}" height="${size}" style="overflow:visible;position:absolute;left:-${center}px;top:-${center}px;">
@@ -81,12 +82,10 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
             <circle class="pulse-ring pulse-ring-${i+1}" cx="${center}" cy="${center}" r="8" 
               fill="none" stroke="${this.color}" stroke-width="1.5"/>
           `).join('')}
-          <circle cx="${center}" cy="${center}" r="${this.isSelected ? 8 : 6}" 
-            fill="${this.color}" 
-            stroke="${this.isSelected ? '#ffffff' : this.color}" 
-            stroke-width="${this.isSelected ? 2 : 1}"
+          <image href="/img/drone.svg" x="${center - iconSize/2}" y="${center - iconSize/2}" 
+            width="${iconSize}" height="${iconSize}"
             style="filter: drop-shadow(0 0 ${this.isSelected ? 8 : 4}px ${this.color});"/>
-          ${this.isSelected ? `<circle cx="${center}" cy="${center}" r="13" fill="none" stroke="#ffffff" stroke-width="1.5"/>` : ''}
+          ${this.isSelected ? `<circle cx="${center}" cy="${center}" r="${iconSize/2 + 4}" fill="none" stroke="#ffffff" stroke-width="1.5"/>` : ''}
         </svg>
       `;
     }

@@ -1,17 +1,8 @@
 import { useState, useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
-import { project, rand, type Drone } from '../utils/droneUtils';
+import { project, type Drone } from '../utils/droneUtils';
 import { drawGrid, drawProtectedZone, drawSensors, drawDrones, drawTrails, updateTrails, type TrailPoint } from './canvas';
 import { DroneTooltip } from './DroneTooltip';
 import { TrailToggleButton } from './TrailToggleButton';
-
-// Tactical mode bounds (spread drones across the map)
-const BOUNDS = { 
-  latMin: 31.35, 
-  latMax: 31.85, 
-  lonMin: 35.15, 
-  lonMax: 35.65, 
-  threshold: 0.03 
-};
 
 interface CanvasMapViewProps {
   dronesRef: MutableRefObject<Drone[]>;
@@ -42,20 +33,10 @@ export function CanvasMapView({
   const showTrailsRef = useRef(showTrails);
   showTrailsRef.current = showTrails;
 
-  // Initialize drone positions for tactical view
+  // Clear trails on mount
   useEffect(() => {
-    const drones = dronesRef.current;
     trailsRef.current.clear();
-    
-    drones.forEach(d => {
-      if (d.status === 'active') {
-        d.lat = rand(BOUNDS.latMin, BOUNDS.latMax);
-        d.lon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
-        d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
-        d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
-      }
-    });
-  }, [dronesRef]);
+  }, []);
 
   // Animation loop
   useEffect(() => {
@@ -87,46 +68,9 @@ export function CanvasMapView({
       const selected = selectedRef.current;
       const showTrails = showTrailsRef.current;
 
-      // Move drones each frame
+      // Calculate dt for sensors and trails
       const dt = lastTsRef.current ? Math.min(ts - lastTsRef.current, 100) : 16;
       lastTsRef.current = ts;
-
-      drones.forEach(d => {
-        if (d.status !== "active") return;
-        const dLat = d.targetLat - d.lat;
-        const dLon = d.targetLon - d.lon;
-        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-        if (dist < BOUNDS.threshold) {
-          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
-          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
-        }
-        // Speed calculation for tactical view - smooth movement
-        const spdMult = 0.00002;
-        const accel = 0.0001;
-        d.vLat += (dLat / (dist || 1)) * d.spd * accel;
-        d.vLon += (dLon / (dist || 1)) * d.spd * accel;
-        // Apply friction to prevent runaway velocity
-        d.vLat *= 0.98;
-        d.vLon *= 0.98;
-        const curSpd = Math.sqrt(d.vLat * d.vLat + d.vLon * d.vLon);
-        const maxSpd = d.spd * spdMult;
-        if (curSpd > maxSpd) { 
-          d.vLat = d.vLat / curSpd * maxSpd; 
-          d.vLon = d.vLon / curSpd * maxSpd; 
-        }
-        d.lat += d.vLat * dt;
-        d.lon += d.vLon * dt;
-        // Clamp to bounds
-        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax) { 
-          d.vLat *= -1; 
-          d.lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, d.lat)); 
-        }
-        if (d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) { 
-          d.vLon *= -1; 
-          d.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, d.lon)); 
-        }
-        d.heading = (Math.atan2(d.vLon, d.vLat) * 180 / Math.PI + 360) % 360;
-      });
 
       // Draw background, grid, etc.
       drawGrid(ctx, w, h, ts);

@@ -7,6 +7,17 @@ interface DroneMarkers {
   line: google.maps.Polyline;
 }
 
+// Local display position for map view (doesn't affect tactical positions)
+interface MapDronePos {
+  lat: number;
+  lon: number;
+  targetLat: number;
+  targetLon: number;
+  vLat: number;
+  vLon: number;
+  heading: number;
+}
+
 // Satellite view bounds (tight cluster)
 const BOUNDS = { 
   latMin: 31.589, 
@@ -25,6 +36,7 @@ export function useDroneMarkers(
   enabled: boolean
 ): void {
   const droneMarkersRef = useRef<Map<string, DroneMarkers>>(new Map());
+  const mapPositionsRef = useRef<Map<string, MapDronePos>>(new Map());
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
 
@@ -51,7 +63,7 @@ export function useDroneMarkers(
         return;
       }
       
-      // Move drones
+      // Move drones using local positions
       const dt = lastTs ? Math.min(timestamp - lastTs, 100) : 16;
       lastTs = timestamp;
       lastUpdate = timestamp;
@@ -60,46 +72,51 @@ export function useDroneMarkers(
       drones.forEach(d => {
         if (d.status !== "active") return;
         
-        // Reposition drones outside satellite view bounds
-        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax || d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) {
-          d.lat = rand(BOUNDS.latMin, BOUNDS.latMax);
-          d.lon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
-          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
-          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
-          d.vLat = 0;
-          d.vLon = 0;
+        // Get or create local map position
+        let pos = mapPositionsRef.current.get(d.id);
+        if (!pos) {
+          pos = {
+            lat: rand(BOUNDS.latMin, BOUNDS.latMax),
+            lon: rand(BOUNDS.lonMin, BOUNDS.lonMax),
+            targetLat: rand(BOUNDS.latMin, BOUNDS.latMax),
+            targetLon: rand(BOUNDS.lonMin, BOUNDS.lonMax),
+            vLat: 0,
+            vLon: 0,
+            heading: d.heading
+          };
+          mapPositionsRef.current.set(d.id, pos);
         }
         
-        const dLat = d.targetLat - d.lat;
-        const dLon = d.targetLon - d.lon;
+        const dLat = pos.targetLat - pos.lat;
+        const dLon = pos.targetLon - pos.lon;
         const dist = Math.sqrt(dLat * dLat + dLon * dLon);
         if (dist < BOUNDS.threshold) {
-          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
-          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
+          pos.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
+          pos.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
         }
         // Movement for satellite view - very slow for realistic effect
-        const accel = 0.00000005;
-        d.vLat += (dLat / (dist || 1)) * d.spd * accel;
-        d.vLon += (dLon / (dist || 1)) * d.spd * accel;
-        d.vLat *= 0.99;
-        d.vLon *= 0.99;
-        const curSpd = Math.sqrt(d.vLat * d.vLat + d.vLon * d.vLon);
-        const maxSpd = d.spd * 0.0000002;
+        const accel = 0.0000000216;
+        pos.vLat += (dLat / (dist || 1)) * d.spd * accel;
+        pos.vLon += (dLon / (dist || 1)) * d.spd * accel;
+        pos.vLat *= 0.99;
+        pos.vLon *= 0.99;
+        const curSpd = Math.sqrt(pos.vLat * pos.vLat + pos.vLon * pos.vLon);
+        const maxSpd = d.spd * 0.00000009;
         if (curSpd > maxSpd) { 
-          d.vLat = d.vLat / curSpd * maxSpd; 
-          d.vLon = d.vLon / curSpd * maxSpd; 
+          pos.vLat = pos.vLat / curSpd * maxSpd; 
+          pos.vLon = pos.vLon / curSpd * maxSpd; 
         }
-        d.lat += d.vLat * dt;
-        d.lon += d.vLon * dt;
-        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax) { 
-          d.vLat *= -1; 
-          d.lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, d.lat)); 
+        pos.lat += pos.vLat * dt;
+        pos.lon += pos.vLon * dt;
+        if (pos.lat < BOUNDS.latMin || pos.lat > BOUNDS.latMax) { 
+          pos.vLat *= -1; 
+          pos.lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, pos.lat)); 
         }
-        if (d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) { 
-          d.vLon *= -1; 
-          d.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, d.lon)); 
+        if (pos.lon < BOUNDS.lonMin || pos.lon > BOUNDS.lonMax) { 
+          pos.vLon *= -1; 
+          pos.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, pos.lon)); 
         }
-        d.heading = (Math.atan2(d.vLon, d.vLat) * 180 / Math.PI + 360) % 360;
+        pos.heading = (Math.atan2(pos.vLon, pos.vLat) * 180 / Math.PI + 360) % 360;
       });
       
       const fn = filterFnRef.current;
@@ -112,23 +129,26 @@ export function useDroneMarkers(
           markers.overlay.setMap(null);
           markers.line.setMap(null);
           droneMarkersRef.current.delete(id);
+          mapPositionsRef.current.delete(id);
         }
       });
       
       visibleDrones.forEach(drone => {
         const cfg = SEV[drone.severity];
         const isSel = selected?.id === drone.id;
+        const pos = mapPositionsRef.current.get(drone.id);
+        if (!pos) return;
         
         const lineLength = 0.00015; // ~15m direction indicator
-        const endLat = drone.lat + Math.cos(drone.heading * Math.PI / 180) * lineLength;
-        const endLon = drone.lon + Math.sin(drone.heading * Math.PI / 180) * lineLength;
+        const endLat = pos.lat + Math.cos(pos.heading * Math.PI / 180) * lineLength;
+        const endLon = pos.lon + Math.sin(pos.heading * Math.PI / 180) * lineLength;
         
         let markers = droneMarkersRef.current.get(drone.id);
         
         if (!markers) {
           // Create new markers for this drone
           const overlay = new DroneOverlay(
-            new window.google!.maps.LatLng(drone.lat, drone.lon),
+            new window.google!.maps.LatLng(pos.lat, pos.lon),
             cfg.color,
             drone.severity,
             isSel,
@@ -138,7 +158,7 @@ export function useDroneMarkers(
           
           const line = new window.google!.maps.Polyline({
             path: [
-              { lat: drone.lat, lng: drone.lon },
+              { lat: pos.lat, lng: pos.lon },
               { lat: endLat, lng: endLon }
             ],
             map: map,
@@ -153,14 +173,14 @@ export function useDroneMarkers(
         } else {
           // Update existing markers smoothly
           markers.overlay.update(
-            new window.google!.maps.LatLng(drone.lat, drone.lon),
+            new window.google!.maps.LatLng(pos.lat, pos.lon),
             cfg.color,
             drone.severity,
             isSel
           );
           
           markers.line.setPath([
-            { lat: drone.lat, lng: drone.lon },
+            { lat: pos.lat, lng: pos.lon },
             { lat: endLat, lng: endLon }
           ]);
           markers.line.setOptions({

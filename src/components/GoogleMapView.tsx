@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
-import { rand, type Drone } from '../utils/droneUtils';
+import { type Drone } from '../utils/droneUtils';
 import { useDroneMarkers, useSensorMarkers } from './google';
 
 const GMAP_API_KEY = 'AIzaSyCaQVlcIeYewnFSmm3xkL2d3HHy9xhYbz4';
@@ -28,22 +28,6 @@ export function GoogleMapView({
   const googleMapRef = useRef<HTMLDivElement>(null);
   const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
   const zoomLevelRef = useRef(18);
-
-  // Initialize drone positions for satellite view
-  useEffect(() => {
-    const drones = dronesRef.current;
-    
-    drones.forEach(d => {
-      if (d.status === 'active') {
-        d.lat = rand(31.589, 31.593);
-        d.lon = rand(35.391, 35.395);
-        d.targetLat = rand(31.589, 31.593);
-        d.targetLon = rand(35.391, 35.395);
-        d.vLat = 0;
-        d.vLon = 0;
-      }
-    });
-  }, [dronesRef]);
 
   // Load Google Maps API
   useEffect(() => {

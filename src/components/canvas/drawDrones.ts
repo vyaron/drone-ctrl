@@ -1,5 +1,11 @@
 import { project, SEV, type Drone } from '../../utils/droneUtils';
 
+// Load drone SVG image
+const droneImg = new Image();
+droneImg.src = '/img/drone.svg';
+let droneImgLoaded = false;
+droneImg.onload = () => { droneImgLoaded = true; };
+
 export function drawDrone(
   ctx: CanvasRenderingContext2D,
   drone: Drone,
@@ -32,40 +38,34 @@ export function drawDrone(
     ctx.stroke();
   }
 
-  // Direction arrow
+  // Calculate heading angle for icon rotation
   const rad = (drone.heading - 90) * Math.PI / 180;
-  const alen = 26;
-  const ax = x + Math.cos(rad) * alen;
-  const ay = y + Math.sin(rad) * alen;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(ax, ay);
-  ctx.strokeStyle = cfg.color + "cc";
-  ctx.lineWidth = isSel ? 2 : 1.5;
-  ctx.stroke();
-  
-  const ang = Math.atan2(ay - y, ax - x);
-  ctx.beginPath();
-  ctx.moveTo(ax, ay);
-  ctx.lineTo(ax - 7 * Math.cos(ang - 0.4), ay - 7 * Math.sin(ang - 0.4));
-  ctx.lineTo(ax - 7 * Math.cos(ang + 0.4), ay - 7 * Math.sin(ang + 0.4));
-  ctx.closePath();
-  ctx.fillStyle = cfg.color + "cc";
-  ctx.fill();
 
-  // Dot
-  const dotR = isSel || isHov ? 9 : 7;
-  ctx.beginPath();
-  ctx.arc(x, y, dotR, 0, Math.PI * 2);
-  ctx.shadowColor = cfg.color;
-  ctx.shadowBlur = isSel ? 20 : 10;
-  ctx.fillStyle = cfg.color;
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Drone icon
+  const iconSize = isSel || isHov ? 28 : 22;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rad + Math.PI / 2); // Rotate to match heading
+  
+  if (droneImgLoaded) {
+    // Apply color tint using composite operations
+    ctx.shadowColor = cfg.color;
+    ctx.shadowBlur = isSel ? 20 : 10;
+    ctx.drawImage(droneImg, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+    ctx.shadowBlur = 0;
+  } else {
+    // Fallback dot if image not loaded
+    ctx.beginPath();
+    ctx.arc(0, 0, iconSize / 3, 0, Math.PI * 2);
+    ctx.fillStyle = cfg.color;
+    ctx.fill();
+  }
+  
+  ctx.restore();
   
   if (isSel) {
     ctx.beginPath();
-    ctx.arc(x, y, dotR + 5, 0, Math.PI * 2);
+    ctx.arc(x, y, iconSize / 2 + 5, 0, Math.PI * 2);
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5;
     ctx.stroke();

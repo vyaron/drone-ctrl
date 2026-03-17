@@ -11,9 +11,19 @@ import {
   formatTime, 
   pick, 
   randInt,
+  rand,
   type Drone,
   type SeverityLevel
 } from '../utils/droneUtils';
+
+// Move bounds here for global drone movement
+const BOUNDS = { 
+  latMin: 31.35, 
+  latMax: 31.85, 
+  lonMin: 35.15, 
+  lonMax: 35.65, 
+  threshold: 0.03 
+};
 
 function Live(): ReactElement {
   const dronesRef = useRef<Drone[]>([]);
@@ -53,11 +63,23 @@ function Live(): ReactElement {
   // Initialize drones
   useEffect(() => {
     const t = Date.now();
+    // Helper to give initial velocity toward target
+    const addInitVelocity = (d: Drone): Drone => {
+      const dLat = d.targetLat - d.lat;
+      const dLon = d.targetLon - d.lon;
+      const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+      const initSpd = d.spd * 0.000004;
+      return {
+        ...d,
+        vLat: (dLat / (dist || 1)) * initSpd,
+        vLon: (dLon / (dist || 1)) * initSpd,
+      };
+    };
     const guaranteed = (["critical", "high", "medium", "low"] as SeverityLevel[]).map(sev => {
       const d = spawnDrone(t - randInt(20000, 80000));
-      return { ...d, severity: sev, model: pick(DRONE_MODELS[sev]) };
+      return addInitVelocity({ ...d, severity: sev, model: pick(DRONE_MODELS[sev]) });
     });
-    const extra = Array.from({ length: 1 }, () => spawnDrone(t - randInt(5000, 60000)));
+    const extra = Array.from({ length: 1 }, () => addInitVelocity(spawnDrone(t - randInt(5000, 60000))));
     dronesRef.current = [...guaranteed, ...extra];
     setDrones([...dronesRef.current]);
   }, []);
@@ -67,9 +89,17 @@ function Live(): ReactElement {
     if (!running) return;
     const id = setInterval(() => {
       const active = dronesRef.current.filter(d => d.status === "active").length;
-      if (active >= 5) return;
-      dronesRef.current = [...dronesRef.current, spawnDrone(Date.now())];
-    }, 12000);
+      if (active >= 8) return;
+      const d = spawnDrone(Date.now());
+      // Give initial velocity toward target so drones don't start stationary
+      const dLat = d.targetLat - d.lat;
+      const dLon = d.targetLon - d.lon;
+      const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+      const initSpd = d.spd * 0.000004;
+      d.vLat = (dLat / (dist || 1)) * initSpd;
+      d.vLon = (dLon / (dist || 1)) * initSpd;
+      dronesRef.current = [...dronesRef.current, d];
+    }, 8000);
     return () => clearInterval(id);
   }, [running]);
 
@@ -83,6 +113,57 @@ function Live(): ReactElement {
     }, 600);
     return () => clearInterval(id);
   }, []);
+
+  // Global drone movement animation (always runs - map view uses its own separate positions)
+  useEffect(() => {
+    if (!running) return;
+    let raf: number;
+    let lastTs: number | null = null;
+    
+    function moveDrones(ts: number) {
+      const dt = lastTs ? Math.min(ts - lastTs, 100) : 16;
+      lastTs = ts;
+      
+      dronesRef.current.forEach(d => {
+        if (d.status !== "active") return;
+        const dLat = d.targetLat - d.lat;
+        const dLon = d.targetLon - d.lon;
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (dist < BOUNDS.threshold) {
+          d.targetLat = rand(BOUNDS.latMin, BOUNDS.latMax);
+          d.targetLon = rand(BOUNDS.lonMin, BOUNDS.lonMax);
+        }
+        const spdMult = 0.000008;
+        const accel = 0.00005;
+        d.vLat += (dLat / (dist || 1)) * d.spd * accel;
+        d.vLon += (dLon / (dist || 1)) * d.spd * accel;
+        d.vLat *= 0.98;
+        d.vLon *= 0.98;
+        const curSpd = Math.sqrt(d.vLat * d.vLat + d.vLon * d.vLon);
+        const maxSpd = d.spd * spdMult;
+        if (curSpd > maxSpd) { 
+          d.vLat = d.vLat / curSpd * maxSpd; 
+          d.vLon = d.vLon / curSpd * maxSpd; 
+        }
+        d.lat += d.vLat * dt;
+        d.lon += d.vLon * dt;
+        if (d.lat < BOUNDS.latMin || d.lat > BOUNDS.latMax) { 
+          d.vLat *= -1; 
+          d.lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, d.lat)); 
+        }
+        if (d.lon < BOUNDS.lonMin || d.lon > BOUNDS.lonMax) { 
+          d.vLon *= -1; 
+          d.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, d.lon)); 
+        }
+        d.heading = (Math.atan2(d.vLon, d.vLat) * 180 / Math.PI + 360) % 360;
+      });
+      
+      raf = requestAnimationFrame(moveDrones);
+    }
+    
+    raf = requestAnimationFrame(moveDrones);
+    return () => cancelAnimationFrame(raf);
+  }, [running]);
 
   const winEnd = now;
   const winStart = now - WINDOW_SEC * 1000;

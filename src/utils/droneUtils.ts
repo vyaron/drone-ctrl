@@ -102,7 +102,7 @@ export function spawnDrone(detectAt: number): Drone {
   const model = pick(DRONE_MODELS[sev]);
   const lat = rand(LAT_MIN, LAT_MAX);
   const lon = rand(LON_MIN, LON_MAX);
-  const dur = randInt(30000, 180000);
+  const dur = randInt(120000, 360000);
 
   // pick 1-3 sensors that "detected" this drone
   const sensorsCount = randInt(1, 3);
@@ -118,8 +118,8 @@ export function spawnDrone(detectAt: number): Drone {
     durationMs: dur,
     lat,
     lon,
-    targetLat: lat + rand(-0.05, 0.05),
-    targetLon: lon + rand(-0.05, 0.05),
+    targetLat: rand(LAT_MIN, LAT_MAX),
+    targetLon: rand(LON_MIN, LON_MAX),
     vLat: 0,
     vLon: 0,
     heading: rand(0, 360),
