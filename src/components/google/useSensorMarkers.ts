@@ -1,51 +1,78 @@
 import { useEffect, useRef } from 'react';
+import { getSensorOverlayClass, type SensorOverlayInstance } from './SensorOverlay';
 
-// Sensor positions for satellite view (visible at zoom 18)
-const SATELLITE_SENSORS = [
-  { id: "sens101", lat: 31.5895, lon: 35.3920 },
-  { id: "sens102", lat: 31.5920, lon: 35.3945 },
-  { id: "sens103", lat: 31.5905, lon: 35.3935 },
-  { id: "sens104", lat: 31.5915, lon: 35.3910 },
+// Separate sensor positions for satellite view (visible at zoom 18)
+const MAP_SENSORS = [
+  { id: "sens101", lat: 31.5895, lon: 35.3920, patrol: true, vLat: 0.0000001 },
+  { id: "sens102", lat: 31.5920, lon: 35.3945, patrol: false },
+  { id: "sens103", lat: 31.5905, lon: 35.3935, patrol: false },
+  { id: "sens104", lat: 31.5915, lon: 35.3910, patrol: false },
 ];
+
+// Local state for map sensors
+const mapSensorState = MAP_SENSORS.map(s => ({ ...s, currentLat: s.lat }));
 
 export function useSensorMarkers(
   mapInstance: google.maps.Map | null,
   enabled: boolean
 ): void {
-  const sensorMarkersRef = useRef<google.maps.Circle[]>([]);
+  const sensorOverlaysRef = useRef<Map<string, SensorOverlayInstance>>(new Map());
+  const animationRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!enabled) return;
     
     const addSensors = () => {
       const map = mapInstance;
-      if (!map || !window.google?.maps?.Circle) {
+      const SensorOverlay = getSensorOverlayClass();
+      if (!map || !SensorOverlay) {
         setTimeout(addSensors, 100);
         return;
       }
       
-      SATELLITE_SENSORS.forEach(sensor => {
-        const sensorCircle = new window.google!.maps.Circle({
-          center: { lat: sensor.lat, lng: sensor.lon },
-          radius: 4,
-          map: map,
-          fillColor: '#8a9ab0',
-          fillOpacity: 0.7,
-          strokeColor: '#00d4ff',
-          strokeWeight: 1,
-          zIndex: 10,
-        });
-        sensorMarkersRef.current.push(sensorCircle);
+      // Create overlays for each sensor
+      mapSensorState.forEach(sensor => {
+        const position = new window.google!.maps.LatLng(sensor.currentLat, sensor.lon);
+        const overlay = new SensorOverlay(position, sensor.id, sensor.patrol, '#00d4ff');
+        overlay.setMap(map);
+        sensorOverlaysRef.current.set(sensor.id, overlay);
       });
+      
+      // Animation loop with own state
+      const animate = (time: number) => {
+        const dt = lastTimeRef.current ? (time - lastTimeRef.current) : 16;
+        lastTimeRef.current = time;
+        
+        mapSensorState.forEach(sensor => {
+          if (!sensor.patrol || !sensor.vLat) return;
+          sensor.currentLat += sensor.vLat * dt;
+          const off = sensor.currentLat - sensor.lat;
+          const range = 0.0015; // Smaller range for zoomed map
+          if (off > range) sensor.vLat = -Math.abs(sensor.vLat);
+          if (off < -range) sensor.vLat = Math.abs(sensor.vLat);
+          
+          const overlay = sensorOverlaysRef.current.get(sensor.id);
+          if (overlay) {
+            const newPos = new window.google!.maps.LatLng(sensor.currentLat, sensor.lon);
+            overlay.update(newPos);
+          }
+        });
+        
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      
+      animationRef.current = requestAnimationFrame(animate);
     };
     
     addSensors();
     
-    const currentMarkers = sensorMarkersRef.current;
-    
     return () => {
-      currentMarkers.forEach(m => m.setMap(null));
-      sensorMarkersRef.current = [];
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      sensorOverlaysRef.current.forEach(o => o.setMap(null));
+      sensorOverlaysRef.current.clear();
     };
   }, [enabled, mapInstance]);
 }

@@ -1,5 +1,11 @@
 import { project, tickSensors, type Drone } from '../../utils/droneUtils';
 
+// Preload sensor icons
+const staticSensorIcon = new Image();
+staticSensorIcon.src = '/img/sensor1.svg';
+const movingSensorIcon = new Image();
+movingSensorIcon.src = '/img/sensor.svg';
+
 export function drawSensors(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -50,18 +56,15 @@ export function drawSensors(
     ctx.lineWidth = isLit ? 1.5 : 1;
     ctx.stroke();
 
-    // Diamond body
+    // Sensor icon
+    const icon = isPatrol ? movingSensorIcon : staticSensorIcon;
+    const iconSize = isLit ? 28 : 24;
     ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate(Math.PI / 4);
     ctx.shadowColor = sGlow;
     ctx.shadowBlur = isLit ? 18 : 10;
-    ctx.strokeStyle = sColor;
-    ctx.lineWidth = isLit ? 2 : 1.5;
-    ctx.strokeRect(-6, -6, 12, 12);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = sColor;
-    ctx.fillRect(-2, -2, 4, 4);
+    if (icon.complete && icon.naturalWidth > 0) {
+      ctx.drawImage(icon, sx - iconSize / 2, sy - iconSize / 2, iconSize, iconSize);
+    }
     ctx.restore();
 
     // Label
