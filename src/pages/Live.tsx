@@ -285,6 +285,13 @@ function Live(): ReactElement {
 
       {/* Content */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
+        <div style={{ 
+          flex: 1, 
+          display: "flex",
+          overflow: "hidden", 
+          transition: "margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          marginRight: selected ? 360 : 0 
+        }}>
         <Routes>
           <Route path="/" element={<Navigate to="/live/timeline" replace />} />
           <Route path="timeline" element={
@@ -363,6 +370,7 @@ function Live(): ReactElement {
             />
           } />
         </Routes>
+        </div>
 
         <DetailPanel selected={selected} dronesRef={dronesRef} onClose={() => setSelected(null)}/>
       </div>

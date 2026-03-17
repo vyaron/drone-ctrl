@@ -63,7 +63,7 @@ export const LON_MIN = 35.15;
 export const LON_MAX = 35.65;
 
 export const SENSORS_BASE: Sensor[] = [
-  { id: "unit101", lat: 31.42, lon: 35.25, patrol: true, vLat: 0.00003, vLon: 0, patrolLat: 31.42 },
+  { id: "unit101", lat: 31.42, lon: 35.25, patrol: true, vLat: 0.00001, vLon: 0, patrolLat: 31.42 },
   { id: "unit102", lat: 31.56, lon: 35.52, patrol: false, vLat: 0, vLon: 0, patrolLat: 0 },
   { id: "unit103", lat: 31.72, lon: 35.35, patrol: false, vLat: 0, vLon: 0, patrolLat: 0 },
   { id: "unit104", lat: 31.65, lon: 35.58, patrol: false, vLat: 0, vLon: 0, patrolLat: 0 },
@@ -137,7 +137,7 @@ export function tickSensors(dt: number): Sensor[] {
     if (!s.patrol) return;
     s.lat += s.vLat * dt;
     const off = s.lat - s.patrolLat;
-    const range = 0.04;
+    const range = 0.10;
     if (off > range) s.vLat = -Math.abs(s.vLat);
     if (off < -range) s.vLat = Math.abs(s.vLat);
   });
