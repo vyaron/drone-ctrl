@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { SEV, project, type Drone } from '../utils/droneUtils';
+import { DRONE_COLORS, project, type Drone } from '../utils/droneUtils';
 
 interface DroneTooltipProps {
   drone: Drone;
@@ -9,7 +9,7 @@ interface DroneTooltipProps {
 }
 
 export function DroneTooltip({ drone, w, h, containerRect }: DroneTooltipProps): ReactElement {
-  const cfg = SEV[drone.severity];
+  const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
   const { x, y } = project(drone.lat, drone.lon, w, h);
   const sx = containerRect ? containerRect.width / w : 1;
   const sy = containerRect ? containerRect.height / h : 1;
@@ -32,7 +32,7 @@ export function DroneTooltip({ drone, w, h, containerRect }: DroneTooltipProps):
         {drone.model}
       </div>
       <div style={{ color: cfg.color, fontSize: 11 }}>
-        {cfg.label} · {drone.threatScore}% threat
+        Sensors: {drone.detectedBy.length}
       </div>
       <div style={{ color: "#8899aa", fontSize: 11, marginTop: 2 }}>
         {drone.altitude}m · {drone.speed}km/h · {Math.round(drone.heading)}°

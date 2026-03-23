@@ -4,7 +4,6 @@ import DroneRow from '../components/DroneRow';
 import MapView from '../components/MapView';
 import DetailPanel from '../components/DetailPanel';
 import { 
-  SEV, 
   WINDOW_SEC, 
   DRONE_MODELS, 
   spawnDrone, 
@@ -14,7 +13,6 @@ import {
   rand,
   addFreqSample,
   type Drone,
-  type SeverityLevel
 } from '../utils/droneUtils';
 
 // Move bounds here for global drone movement
@@ -29,7 +27,6 @@ const BOUNDS = {
 function Live(): ReactElement {
   const dronesRef = useRef<Drone[]>([]);
   const [drones, setDrones] = useState<Drone[]>([]);
-  const [filter, setFilter] = useState<'all' | SeverityLevel>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Drone | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -76,12 +73,9 @@ function Live(): ReactElement {
         vLon: (dLon / (dist || 1)) * initSpd,
       };
     };
-    const guaranteed = (["critical", "high", "medium", "low"] as SeverityLevel[]).map(sev => {
-      const d = spawnDrone(t - randInt(20000, 80000));
-      return addInitVelocity({ ...d, severity: sev, model: pick(DRONE_MODELS[sev]) });
-    });
-    const extra = Array.from({ length: 1 }, () => addInitVelocity(spawnDrone(t - randInt(5000, 60000))));
-    dronesRef.current = [...guaranteed, ...extra];
+    // Spawn initial drones
+    const initial = Array.from({ length: 5 }, () => addInitVelocity(spawnDrone(t - randInt(5000, 80000))));
+    dronesRef.current = initial;
     setDrones([...dronesRef.current]);
   }, []);
 
@@ -184,7 +178,6 @@ function Live(): ReactElement {
   const winStart = now - WINDOW_SEC * 1000;
 
   const filtered = drones.filter(d => {
-    if (filter !== "all" && d.severity !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!d.model.toLowerCase().includes(q) && !String(d.lat).includes(q) && !String(d.lon).includes(q)) return false;
@@ -193,17 +186,12 @@ function Live(): ReactElement {
   }).sort((a, b) => {
     if (a.status === "active" && b.status !== "active") return -1;
     if (b.status === "active" && a.status !== "active") return 1;
-    const sevOrder: Record<SeverityLevel, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-    return sevOrder[a.severity] - sevOrder[b.severity];
+    return b.detectedMs - a.detectedMs; // Sort by detection time, newest first
   });
 
-  const counts: Record<SeverityLevel, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  drones.filter(d => d.status === "active").forEach(d => counts[d.severity]++);
-  const totalActive = Object.values(counts).reduce((a, b) => a + b, 0);
-  
+  const totalActive = drones.filter(d => d.status === "active").length;
   // Filtered active count for "X ON MAP" display
   const filterFn = (d: Drone): boolean => {
-    if (filter !== "all" && d.severity !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!d.model.toLowerCase().includes(q) && !String(d.lat).includes(q) && !String(d.lon).includes(q)) return false;
@@ -235,26 +223,12 @@ function Live(): ReactElement {
             width: 7, 
             height: 7, 
             borderRadius: "50%", 
-            background: running ? "#ff2d55" : "#334", 
+            background: running ? "#00d4ff" : "#334", 
             animation: running ? "blink 1.1s ease-in-out infinite" : "none", 
             marginLeft: 6, 
             flexShrink: 0 
           }}/>
         </div>
-        <div style={{ width: 1, height: 18, background: "rgba(0,212,255,0.15)", margin: "0 4px" }}/>
-        {(["critical", "high", "medium", "low"] as SeverityLevel[]).map(s => (
-          <div key={s} style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: 5, 
-            opacity: counts[s] > 0 ? 1 : 0.25, 
-            transition: "opacity 0.3s" 
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: SEV[s].color, flexShrink: 0 }}/>
-            <span style={{ fontSize: 11, color: SEV[s].color, letterSpacing: 1 }}>{SEV[s].label}</span>
-            <span style={{ fontSize: 16, color: "#fff", fontWeight: 700 }}>{counts[s]}</span>
-          </div>
-        ))}
         <div style={{ width: 1, height: 18, background: "rgba(0,212,255,0.15)", margin: "0 4px" }}/>
         <div style={{ fontSize: 12, color: "#8899aa" }}>ACTIVE <span style={{ color: "#e8eaf0", fontSize: 16, fontWeight: 700 }}>{totalActive}</span></div>
         <div style={{ fontSize: 12, color: "#8899aa" }}>AREA <strong style={{ color: "#7ecfff" }}>47.3 km²</strong></div>
@@ -315,34 +289,10 @@ function Live(): ReactElement {
         
         <div style={{ flex: 1 }}/>
         
-        {/* Right side - Filters */}
+        {/* Right side - Search */}
         <span style={{ fontSize: 11, color: "#8899aa", letterSpacing: 1, marginRight: 12 }}>
           {currentPath === "timeline" ? "5 MIN WINDOW" : `${filteredActiveCount} ON MAP`}
         </span>
-        <div style={{ display: "flex", gap: 3, marginRight: 10 }}>
-          {(["all", "critical", "high", "medium", "low"] as const).map(f => (
-            <button 
-              key={f} 
-              onClick={() => setFilter(f)} 
-              style={{ 
-                padding: "4px 9px", 
-                borderRadius: 3, 
-                fontSize: 11, 
-                letterSpacing: 1, 
-                fontWeight: 700, 
-                background: filter === f ? (f === "all" ? "rgba(0,212,255,0.12)" : SEV[f]?.bg) : "transparent", 
-                color: filter === f ? (f === "all" ? "#00d4ff" : SEV[f]?.color) : "#8899aa", 
-                border: `1px solid ${filter === f ? (f === "all" ? "rgba(0,212,255,0.3)" : SEV[f]?.color + "55") : "rgba(0,212,255,0.07)"}`, 
-                cursor: "pointer", 
-                transition: "all 0.12s", 
-                fontFamily: "'Share Tech Mono',monospace" 
-              }}
-            >
-              {f.toUpperCase()}
-            </button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 18, background: "rgba(0,212,255,0.12)", margin: "0 4px" }}/>
         <div style={{ 
           display: "flex", 
           alignItems: "center", 
@@ -421,13 +371,13 @@ function Live(): ReactElement {
                   </div>
                 ))}
                 <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingRight: 5 }}>
-                  <span style={{ fontSize: 10, color: "#ff2d55", letterSpacing: 1.5 }}>NOW</span>
+                  <span style={{ fontSize: 10, color: "#00d4ff", letterSpacing: 1.5 }}>NOW</span>
                 </div>
               </div>
 
               {/* Drone rows */}
               <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
-                <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 1, background: "rgba(255,45,85,0.2)", pointerEvents: "none", zIndex: 10 }}/>
+                <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 1, background: "rgba(0,212,255,0.2)", pointerEvents: "none", zIndex: 10 }}/>
                 {filtered.length === 0 ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 180, color: "#8899aa", fontSize: 13, letterSpacing: 2 }}>
                     NO DRONES IN WINDOW

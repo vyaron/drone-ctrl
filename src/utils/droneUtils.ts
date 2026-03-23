@@ -1,8 +1,5 @@
 // Types
-export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low';
-
-export interface SeverityConfig {
-  label: string;
+export interface DroneColorConfig {
   color: string;
   glow: string;
   bg: string;
@@ -24,10 +21,13 @@ export const FREQ_BANDS = {
   ISM_5_8G: { min: 5700, max: 5900, label: 'ISM 5.8G', color: 'rgba(48,209,88,0.15)' },
 } as const;
 
+// Detection confidence levels
+export type DetectionLevel = 'location' | 'direction' | 'detection';
+
 export interface Drone {
   id: string;
   model: string;
-  severity: SeverityLevel;
+  colorIndex: number;    // index into DRONE_COLORS array
   status: 'active' | 'left';
   detectedMs: number;
   durationMs: number;
@@ -41,12 +41,16 @@ export interface Drone {
   altitude: number;
   speed: number;
   spd: number;
-  threatScore: number;
   rfSig: number;
   detectedBy: string[];
   freqHistory: FreqSample[];
   currentFreq: number;       // current frequency in MHz
   freqBand: keyof typeof FREQ_BANDS; // which band this drone operates in
+  // Detection level - determines visualization
+  level?: DetectionLevel;
+  bearing?: number;          // for direction level
+  bearingWidth?: number;     // for direction level
+  sensorId?: string;         // for detection level
 }
 
 export interface Sensor {
@@ -59,27 +63,39 @@ export interface Sensor {
   patrolLat: number;
 }
 
-// Constants
-export const SEV: Record<SeverityLevel, SeverityConfig> = {
-  critical: { label: "CRITICAL", color: "#ff2d55", glow: "rgba(255,45,85,0.6)", bg: "rgba(255,45,85,0.12)" },
-  high:     { label: "HIGH",     color: "#ff8c00", glow: "rgba(255,140,0,0.5)", bg: "rgba(255,140,0,0.10)" },
-  medium:   { label: "MEDIUM",   color: "#ffd60a", glow: "rgba(255,214,10,0.5)", bg: "rgba(255,214,10,0.08)" },
-  low:      { label: "LOW",      color: "#30d158", glow: "rgba(48,209,88,0.5)", bg: "rgba(48,209,88,0.08)" },
-};
+// Constants - 10 neutral drone colors (no red/green)
+export const DRONE_COLORS: DroneColorConfig[] = [
+  { color: "#00d4ff", glow: "rgba(0,212,255,0.6)", bg: "rgba(0,212,255,0.12)" },     // cyan
+  { color: "#ff9500", glow: "rgba(255,149,0,0.5)", bg: "rgba(255,149,0,0.10)" },     // orange
+  { color: "#af52de", glow: "rgba(175,82,222,0.5)", bg: "rgba(175,82,222,0.10)" },   // purple
+  { color: "#007aff", glow: "rgba(0,122,255,0.5)", bg: "rgba(0,122,255,0.10)" },     // blue
+  { color: "#ffd60a", glow: "rgba(255,214,10,0.5)", bg: "rgba(255,214,10,0.08)" },   // yellow
+  { color: "#32ade6", glow: "rgba(50,173,230,0.5)", bg: "rgba(50,173,230,0.10)" },   // teal
+  { color: "#ff8c00", glow: "rgba(255,140,0,0.5)", bg: "rgba(255,140,0,0.10)" },     // dark orange
+  { color: "#bf5af2", glow: "rgba(191,90,242,0.5)", bg: "rgba(191,90,242,0.10)" },   // magenta
+  { color: "#64d2ff", glow: "rgba(100,210,255,0.5)", bg: "rgba(100,210,255,0.10)" }, // light blue
+  { color: "#ffcc00", glow: "rgba(255,204,0,0.5)", bg: "rgba(255,204,0,0.10)" },     // gold
+];
 
 export const WINDOW_SEC = 300; // 5 min scroll window
 
-export const DRONE_MODELS: Record<SeverityLevel, string[]> = {
-  critical: ["DJI Matrice 300 RTK", "Autel EVO II Pro", "Freefly Alta X", "Yuneec H520E"],
-  high: ["DJI Phantom 4 Pro", "Parrot Anafi AI", "DJI Mini 3 Pro", "Autel EVO Nano+"],
-  medium: ["DJI Air 2S", "Parrot Anafi USA", "Skydio 2+", "DJI Mavic 3"],
-  low: ["Holy Stone HS720", "Ryze Tello", "Syma X5C", "Potensic ATOM SE"],
-};
+export const DRONE_MODELS: string[] = [
+  "DJI Matrice 300 RTK", "Autel EVO II Pro", "Freefly Alta X", "Yuneec H520E",
+  "DJI Phantom 4 Pro", "Parrot Anafi AI", "DJI Mini 3 Pro", "Autel EVO Nano+",
+  "DJI Air 2S", "Parrot Anafi USA", "Skydio 2+", "DJI Mavic 3",
+  "Holy Stone HS720", "Ryze Tello", "Syma X5C", "Potensic ATOM SE",
+];
 
 export const LAT_MIN = 31.35;
 export const LAT_MAX = 31.85;
 export const LON_MIN = 35.15;
 export const LON_MAX = 35.65;
+
+// Site center for direction wedges
+export const SITE_CENTER = {
+  lat: (LAT_MIN + LAT_MAX) / 2,
+  lon: (LON_MIN + LON_MAX) / 2,
+};
 
 export const SENSORS_BASE: Sensor[] = [
   { id: "unit101", lat: 31.42, lon: 35.25, patrol: true, vLat: 0.00001, vLon: 0, patrolLat: 31.42 },
@@ -155,8 +171,8 @@ export function addFreqSample(drone: Drone, ts: number): void {
 }
 
 export function spawnDrone(detectAt: number): Drone {
-  const sev = pick<SeverityLevel>(["critical", "high", "medium", "low"]);
-  const model = pick(DRONE_MODELS[sev]);
+  const colorIndex = randInt(0, DRONE_COLORS.length - 1);
+  const model = pick(DRONE_MODELS);
   const lat = rand(LAT_MIN, LAT_MAX);
   const lon = rand(LON_MIN, LON_MAX);
   const dur = randInt(120000, 360000);
@@ -205,10 +221,24 @@ export function spawnDrone(detectAt: number): Drone {
     }
   }
 
+  // Assign detection level with weighted probability  
+  const levelRoll = Math.random();
+  const level: DetectionLevel = 
+    levelRoll < 0.5 ? 'location' :    // 50% full location
+    levelRoll < 0.8 ? 'direction' :   // 30% direction only
+    'detection';                       // 20% detection only
+  
+  // For direction level, generate bearing
+  const bearing = level === 'direction' ? randInt(0, 360) : undefined;
+  const bearingWidth = level === 'direction' ? randInt(15, 45) : undefined;
+  
+  // Pick primary sensor for detection level
+  const sensorId = detectedBy[0];
+
   return {
     id: `drone-${droneId++}`,
     model,
-    severity: sev,
+    colorIndex,
     status: "active",
     detectedMs: detectAt,
     durationMs: dur,
@@ -222,12 +252,15 @@ export function spawnDrone(detectAt: number): Drone {
     altitude: randInt(20, 400),
     speed: randInt(5, 80),
     spd: rand(0.4, 1.2),
-    threatScore: randInt(30, 99),
     rfSig: randInt(-90, -30),
     detectedBy,
     freqHistory,
     currentFreq,
     freqBand,
+    level,
+    bearing,
+    bearingWidth,
+    sensorId,
   };
 }
 
@@ -256,15 +289,25 @@ export interface Detection {
   id: string;
   droneId: string;
   droneType: string;          // e.g., "DJI Phantom 4 Pro"
-  severity: SeverityLevel;
+  colorIndex: number;         // index into DRONE_COLORS array
   startedAt: number;          // timestamp ms
   endedAt: number;            // timestamp ms
   frequencies: number[];      // MHz values detected
-  lat: number;
-  lon: number;
-  positionHistory: PositionSample[];  // Full trajectory for replay
   freqHistory: FreqSample[];          // Frequency samples
   freqBand: keyof typeof FREQ_BANDS;
+  
+  // Detection level determines visualization
+  level: DetectionLevel;
+  sensorId: string;           // which sensor detected it
+  
+  // For 'location' level - full position data
+  lat?: number;
+  lon?: number;
+  positionHistory?: PositionSample[];  // Full trajectory for replay
+  
+  // For 'direction' level - bearing from site center
+  bearing?: number;           // degrees (0-360)
+  bearingWidth?: number;      // cone width in degrees
 }
 
 export interface Event {
@@ -276,15 +319,13 @@ export interface Event {
 
 // Generate mock events for the Events Report
 export function generateMockEvents(
-  timeRange: { start: number; end: number },
-  threatTypes: Set<SeverityLevel>
+  timeRange: { start: number; end: number }
 ): Event[] {
   const events: Event[] = [];
   const duration = timeRange.end - timeRange.start;
   
   // Generate 5-12 events spread across time range
   const eventCount = 5 + Math.floor(Math.random() * 8);
-  const severities: SeverityLevel[] = ['critical', 'high', 'medium', 'low'];
   
   for (let i = 0; i < eventCount; i++) {
     const eventStart = timeRange.start + (i / eventCount) * duration * 0.8 + Math.random() * duration * 0.1;
@@ -296,12 +337,21 @@ export function generateMockEvents(
     const detections: Detection[] = [];
     
     for (let j = 0; j < detectionCount; j++) {
-      const severity = pick(severities);
-      if (!threatTypes.has(severity)) continue;
+      const colorIndex = randInt(0, DRONE_COLORS.length - 1);
       
       const detStart = eventStart + Math.random() * (eventEnd - eventStart) * 0.3;
       const detDuration = randInt(2, 20) * 60 * 1000; // 2-20 minutes
       const detEnd = Math.min(detStart + detDuration, eventEnd);
+      
+      // Assign detection level with weighted probability
+      const levelRoll = Math.random();
+      const level: DetectionLevel = 
+        levelRoll < 0.5 ? 'location' :    // 50% full location
+        levelRoll < 0.8 ? 'direction' :   // 30% direction only
+        'detection';                       // 20% detection only
+      
+      // Pick a random sensor
+      const sensorId = pick(SENSORS_BASE).id;
       
       // Generate random frequencies detected
       const freqBand = pick(['ISM_2_4G', 'ISM_5_8G', 'BAND_5150', 'BAND_900'] as (keyof typeof FREQ_BANDS)[]);
@@ -312,86 +362,104 @@ export function generateMockEvents(
         frequencies.push(Math.round(rand(band.min, band.max)));
       }
       
-      // Generate position history (one sample per second)
-      const startLat = rand(LAT_MIN, LAT_MAX);
-      const startLon = rand(LON_MIN, LON_MAX);
-      const positionHistory: PositionSample[] = [];
       const freqHistory: FreqSample[] = [];
-      
-      let curLat = startLat;
-      let curLon = startLon;
-      let targetLat = rand(LAT_MIN, LAT_MAX);
-      let targetLon = rand(LON_MIN, LON_MAX);
-      let vLat = 0;
-      let vLon = 0;
-      const spd = rand(0.4, 1.2);
       let currentFreq = rand(band.min, band.max);
       
-      for (let ts = detStart; ts <= detEnd; ts += 1000) {
-        // Movement simulation
-        const dLat = targetLat - curLat;
-        const dLon = targetLon - curLon;
-        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-        
-        if (dist < 0.03) {
-          targetLat = rand(LAT_MIN, LAT_MAX);
-          targetLon = rand(LON_MIN, LON_MAX);
+      // Generate freq history for all levels
+      for (let ts = detStart; ts <= detEnd; ts += 250) {
+        const hopChance = Math.random();
+        const bandRange = band.max - band.min;
+        if (hopChance < 0.25) {
+          currentFreq = rand(band.min, band.max);
+        } else if (hopChance < 0.5) {
+          const jump = rand(-0.25, 0.25) * bandRange;
+          currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + jump));
+        } else {
+          const drift = rand(-0.1, 0.1) * bandRange;
+          currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + drift));
         }
-        
-        const spdMult = 0.000008;
-        const accel = 0.00005;
-        vLat += (dLat / (dist || 1)) * spd * accel;
-        vLon += (dLon / (dist || 1)) * spd * accel;
-        vLat *= 0.98;
-        vLon *= 0.98;
-        
-        const curSpd = Math.sqrt(vLat * vLat + vLon * vLon);
-        const maxSpd = spd * spdMult;
-        if (curSpd > maxSpd) {
-          vLat = vLat / curSpd * maxSpd;
-          vLon = vLon / curSpd * maxSpd;
-        }
-        
-        curLat += vLat * 1000;
-        curLon += vLon * 1000;
-        curLat = Math.max(LAT_MIN, Math.min(LAT_MAX, curLat));
-        curLon = Math.max(LON_MIN, Math.min(LON_MAX, curLon));
-        
-        const heading = (Math.atan2(vLon, vLat) * 180 / Math.PI + 360) % 360;
-        
-        positionHistory.push({ ts, lat: curLat, lon: curLon, heading });
-        
-        // Freq sample every 250ms intervals
-        if ((ts - detStart) % 250 === 0) {
-          const hopChance = Math.random();
-          const bandRange = band.max - band.min;
-          if (hopChance < 0.25) {
-            currentFreq = rand(band.min, band.max);
-          } else if (hopChance < 0.5) {
-            const jump = rand(-0.25, 0.25) * bandRange;
-            currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + jump));
-          } else {
-            const drift = rand(-0.1, 0.1) * bandRange;
-            currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + drift));
-          }
-          freqHistory.push({ ts, freq: currentFreq, strength: randInt(40, 95) });
-        }
+        freqHistory.push({ ts, freq: currentFreq, strength: randInt(40, 95) });
       }
       
-      detections.push({
+      // Build detection based on level
+      const baseDetection = {
         id: `det-${i + 1}-${j + 1}`,
         droneId: `drone-evt-${i + 1}-${j + 1}`,
-        droneType: pick(DRONE_MODELS[severity]),
-        severity,
+        droneType: pick(DRONE_MODELS),
+        colorIndex,
         startedAt: detStart,
         endedAt: detEnd,
         frequencies: frequencies.sort((a, b) => a - b),
-        lat: startLat,
-        lon: startLon,
-        positionHistory,
         freqHistory,
         freqBand,
-      });
+        level,
+        sensorId,
+      };
+      
+      if (level === 'location') {
+        // Generate position history (one sample per second)
+        const startLat = rand(LAT_MIN, LAT_MAX);
+        const startLon = rand(LON_MIN, LON_MAX);
+        const positionHistory: PositionSample[] = [];
+        
+        let curLat = startLat;
+        let curLon = startLon;
+        let targetLat = rand(LAT_MIN, LAT_MAX);
+        let targetLon = rand(LON_MIN, LON_MAX);
+        let vLat = 0;
+        let vLon = 0;
+        const spd = rand(0.4, 1.2);
+        
+        for (let ts = detStart; ts <= detEnd; ts += 1000) {
+          const dLat = targetLat - curLat;
+          const dLon = targetLon - curLon;
+          const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+          
+          if (dist < 0.03) {
+            targetLat = rand(LAT_MIN, LAT_MAX);
+            targetLon = rand(LON_MIN, LON_MAX);
+          }
+          
+          const spdMult = 0.000008;
+          const accel = 0.00005;
+          vLat += (dLat / (dist || 1)) * spd * accel;
+          vLon += (dLon / (dist || 1)) * spd * accel;
+          vLat *= 0.98;
+          vLon *= 0.98;
+          
+          const curSpd = Math.sqrt(vLat * vLat + vLon * vLon);
+          const maxSpd = spd * spdMult;
+          if (curSpd > maxSpd) {
+            vLat = vLat / curSpd * maxSpd;
+            vLon = vLon / curSpd * maxSpd;
+          }
+          
+          curLat += vLat * 1000;
+          curLon += vLon * 1000;
+          curLat = Math.max(LAT_MIN, Math.min(LAT_MAX, curLat));
+          curLon = Math.max(LON_MIN, Math.min(LON_MAX, curLon));
+          
+          const heading = (Math.atan2(vLon, vLat) * 180 / Math.PI + 360) % 360;
+          positionHistory.push({ ts, lat: curLat, lon: curLon, heading });
+        }
+        
+        detections.push({
+          ...baseDetection,
+          lat: startLat,
+          lon: startLon,
+          positionHistory,
+        });
+      } else if (level === 'direction') {
+        // Generate bearing and width
+        detections.push({
+          ...baseDetection,
+          bearing: randInt(0, 360),
+          bearingWidth: randInt(15, 45),
+        });
+      } else {
+        // detection level - no extra data needed
+        detections.push(baseDetection);
+      }
     }
     
     if (detections.length === 0) continue;
@@ -414,7 +482,13 @@ export function generateMockEvents(
 // ====== Replay Utilities ======
 
 // Convert Detection to Drone at a specific timestamp for replay
+// Only works for 'location' level detections
 export function detectionToDrone(detection: Detection, currentTs: number): Drone | null {
+  // Only location-level detections can be converted to drones
+  if (detection.level !== 'location') {
+    return null;
+  }
+  
   // Check if detection is active at this timestamp
   if (currentTs < detection.startedAt || currentTs > detection.endedAt) {
     return null;
@@ -422,7 +496,7 @@ export function detectionToDrone(detection: Detection, currentTs: number): Drone
   
   // Find position at current timestamp (interpolate between samples)
   const history = detection.positionHistory;
-  if (history.length === 0) {
+  if (!history || history.length === 0) {
     return null;
   }
   
@@ -458,7 +532,7 @@ export function detectionToDrone(detection: Detection, currentTs: number): Drone
   return {
     id: detection.droneId,
     model: detection.droneType,
-    severity: detection.severity,
+    colorIndex: detection.colorIndex,
     status: 'active',
     detectedMs: detection.startedAt,
     durationMs: detection.endedAt - detection.startedAt,
@@ -472,7 +546,6 @@ export function detectionToDrone(detection: Detection, currentTs: number): Drone
     altitude: randInt(20, 400),
     speed: randInt(5, 80),
     spd: 1,
-    threatScore: randInt(30, 99),
     rfSig: randInt(-90, -30),
     detectedBy: [SENSORS_BASE[0].id],
     freqHistory,

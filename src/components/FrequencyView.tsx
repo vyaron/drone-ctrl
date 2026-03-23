@@ -1,10 +1,9 @@
 import { useRef, useEffect, useState, type MutableRefObject, type ReactElement } from 'react';
 import { 
-  SEV, 
+  DRONE_COLORS, 
   FREQ_BANDS, 
   WINDOW_SEC,
-  type Drone,
-  type SeverityLevel 
+  type Drone
 } from '../utils/droneUtils';
 
 interface FrequencyViewProps {
@@ -159,13 +158,13 @@ export default function FrequencyView({ dronesRef, selected, onSelect, filterFn 
       }
 
       // NOW marker
-      ctx!.strokeStyle = 'rgba(255, 45, 85, 0.5)';
+      ctx!.strokeStyle = 'rgba(0, 212, 255, 0.5)';
       ctx!.lineWidth = 2;
       ctx!.beginPath();
       ctx!.moveTo(width - PADDING.right, PADDING.top);
       ctx!.lineTo(width - PADDING.right, height - PADDING.bottom);
       ctx!.stroke();
-      ctx!.fillStyle = '#ff2d55';
+      ctx!.fillStyle = '#00d4ff';
       ctx!.font = '10px "Share Tech Mono", monospace';
       ctx!.textAlign = 'center';
       ctx!.fillText('NOW', width - PADDING.right, PADDING.top - 8);
@@ -212,7 +211,8 @@ export default function FrequencyView({ dronesRef, selected, onSelect, filterFn 
       } else {
         // Dots or Lines mode
         drones.forEach(d => {
-          const color = SEV[d.severity].color;
+          const cfg = DRONE_COLORS[d.colorIndex % DRONE_COLORS.length];
+          const color = cfg.color;
           const isSelected = selected?.id === d.id;
           const samples = d.freqHistory.filter(s => s.ts >= winStart && s.ts <= winEnd);
           
@@ -242,7 +242,7 @@ export default function FrequencyView({ dronesRef, selected, onSelect, filterFn 
 
             if (isSelected) {
               // Glow effect
-              ctx!.shadowColor = SEV[d.severity].glow;
+              ctx!.shadowColor = cfg.glow;
               ctx!.shadowBlur = 8;
             }
 

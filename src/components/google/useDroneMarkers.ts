@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
-import { SEV, rand, type Drone } from '../../utils/droneUtils';
+import { DRONE_COLORS, rand, type Drone } from '../../utils/droneUtils';
 import { getDroneOverlayClass, type DroneOverlayInstance } from './DroneOverlay';
 
 interface DroneMarkers {
@@ -139,8 +139,9 @@ export function useDroneMarkers(
       });
       
       visibleDrones.forEach(drone => {
-        const cfg = SEV[drone.severity];
+        const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
         const isSel = selected?.id === drone.id;
+        const sensorCount = drone.detectedBy?.length || 1;
         
         // Use actual positions or local animated positions
         let lat: number, lon: number, heading: number;
@@ -167,7 +168,7 @@ export function useDroneMarkers(
           const overlay = new DroneOverlay(
             new window.google!.maps.LatLng(lat, lon),
             cfg.color,
-            drone.severity,
+            sensorCount,
             isSel,
             () => onSelect(drone)
           );
@@ -192,7 +193,7 @@ export function useDroneMarkers(
           markers.overlay.update(
             new window.google!.maps.LatLng(lat, lon),
             cfg.color,
-            drone.severity,
+            sensorCount,
             isSel
           );
           

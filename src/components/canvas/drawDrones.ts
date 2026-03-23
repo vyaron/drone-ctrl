@@ -1,4 +1,4 @@
-import { project, SEV, type Drone } from '../../utils/droneUtils';
+import { project, DRONE_COLORS, type Drone } from '../../utils/droneUtils';
 
 // Load drone SVG image
 const droneImg = new Image();
@@ -15,7 +15,7 @@ export function drawDrone(
   selected: Drone | null,
   hover: Drone | null
 ): void {
-  const cfg = SEV[drone.severity];
+  const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
   const { x, y } = project(drone.lat, drone.lon, w, h);
   const isSel = selected?.id === drone.id;
   const isHov = hover?.id === drone.id;
@@ -25,8 +25,9 @@ export function drawDrone(
   const droneAlpha = selected && !isSel ? 0.1 : 1;
   ctx.globalAlpha = droneAlpha;
 
-  // Pulse rings
-  const rings = drone.severity === "critical" ? 3 : drone.severity === "high" ? 2 : 1;
+  // Pulse rings - number based on how many sensors detect the drone
+  const sensorCount = drone.detectedBy?.length || 1;
+  const rings = Math.min(sensorCount, 3);
   for (let i = 0; i < rings; i++) {
     const progress = (phase + i * (2 / rings)) % 2;
     const ringR = 10 + progress * 22;

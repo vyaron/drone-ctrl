@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { SEV, formatTime, type Drone, type Event } from '../utils/droneUtils';
+import { DRONE_COLORS, formatTime, type Drone, type Event } from '../utils/droneUtils';
 
 interface HistoricalTimelineProps {
   event: Event;
@@ -91,7 +91,7 @@ export function HistoricalTimeline({
         ) : (
           event.detections.map(det => {
             const drone = drones.find(d => d.id === det.droneId);
-            const cfg = SEV[det.severity];
+            const cfg = DRONE_COLORS[det.colorIndex % DRONE_COLORS.length];
             
             const detectPos = Math.max(0, (det.startedAt - winStart) / windowLen) * 100;
             const barEnd = Math.min(100, ((det.endedAt - winStart) / windowLen) * 100);
@@ -127,21 +127,22 @@ export function HistoricalTimeline({
                       {det.droneType}
                     </div>
                     <div style={{ fontSize: 10, color: '#8899aa' }}>
-                      {drone ? `${drone.lat.toFixed(4)}, ${drone.lon.toFixed(4)}` : `${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}`}
+                      {det.level === 'location' && drone 
+                        ? `${drone.lat.toFixed(4)}, ${drone.lon.toFixed(4)}`
+                        : det.level === 'location' && det.lat && det.lon
+                        ? `${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}`
+                        : det.level === 'direction'
+                        ? `DIR ${det.bearing ?? 0}°`
+                        : det.sensorId}
                     </div>
                   </div>
-                  <div style={{ 
-                    padding: '2px 6px', 
-                    borderRadius: 4, 
-                    background: cfg.bg, 
-                    color: cfg.color, 
-                    fontSize: 9, 
-                    fontWeight: 700, 
-                    letterSpacing: 1, 
+                  <span style={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    background: cfg.color, 
                     marginRight: 10 
-                  }}>
-                    {cfg.label}
-                  </div>
+                  }}/>
                 </div>
                 {/* Bar */}
                 <div style={{ flex: 1, height: 18, position: 'relative' }}>

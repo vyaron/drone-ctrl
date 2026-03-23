@@ -1,12 +1,11 @@
 import { useState, useMemo, type ReactElement } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { SEV, type SeverityLevel } from '../utils/droneUtils';
 import ReportEventsView from '../components/ReportEventsView';
+import ReportSummaryView from '../components/ReportSummaryView';
 
 type DateRange = '1d' | '7d' | '14d' | 'custom';
 
 interface ReportFilters {
-  threatTypes: Set<SeverityLevel>;
   dateRange: DateRange;
   customStart?: Date;
   customEnd?: Date;
@@ -29,22 +28,12 @@ function getTimeRange(filters: ReportFilters): { start: number; end: number } {
   return { start, end };
 }
 
-interface ReportRow {
-  date: string;
-  detected: number;
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-}
-
 function Reports(): ReactElement {
   const location = useLocation();
-  const currentPath = location.pathname.replace('/reports', '').replace('/', '') || 'summary';
+  const currentPath = location.pathname.replace('/reports', '').replace('/', '') || 'events';
   
   // Common filter state
   const [filters, setFilters] = useState<ReportFilters>({
-    threatTypes: new Set(['critical', 'high', 'medium', 'low'] as SeverityLevel[]),
     dateRange: '1d',
   });
   
@@ -52,18 +41,6 @@ function Reports(): ReactElement {
   const [customEndStr, setCustomEndStr] = useState('');
   
   const timeRange = useMemo(() => getTimeRange(filters), [filters]);
-
-  const toggleThreatType = (sev: SeverityLevel) => {
-    setFilters(f => {
-      const newTypes = new Set(f.threatTypes);
-      if (newTypes.has(sev)) {
-        if (newTypes.size > 1) newTypes.delete(sev); // Keep at least one
-      } else {
-        newTypes.add(sev);
-      }
-      return { ...f, threatTypes: newTypes };
-    });
-  };
 
   const setDateRange = (range: DateRange) => {
     if (range === 'custom') {
@@ -94,14 +71,6 @@ function Reports(): ReactElement {
       }));
     }
   };
-
-  const mockData: ReportRow[] = [
-    { date: '2024-03-01', detected: 47, critical: 3, high: 8, medium: 15, low: 21 },
-    { date: '2024-02-29', detected: 52, critical: 5, high: 12, medium: 18, low: 17 },
-    { date: '2024-02-28', detected: 38, critical: 2, high: 6, medium: 12, low: 18 },
-    { date: '2024-02-27', detected: 61, critical: 7, high: 14, medium: 22, low: 18 },
-    { date: '2024-02-26', detected: 44, critical: 4, high: 9, medium: 14, low: 17 },
-  ];
 
   const formatTimeRangeLabel = () => {
     const { start, end } = timeRange;
@@ -146,8 +115,8 @@ function Reports(): ReactElement {
         {/* Left side - Navigation */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {[
-            { id: 'summary', icon: '▦', label: 'SUMMARY' },
             { id: 'events', icon: '⚡', label: 'EVENTS' },
+            { id: 'summary', icon: '▦', label: 'SUMMARY' },
           ].map(t => (
             <Link 
               key={t.id} 
@@ -176,43 +145,15 @@ function Reports(): ReactElement {
         
         <div style={{ flex: 1 }}/>
         
-        {/* Right side - Filters */}
+        {/* Right side - Date Range Filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
-          {/* Threat Types */}
-          <span style={{ fontSize: 10, color: '#8899aa', letterSpacing: 1 }}>THREATS:</span>
-          <div style={{ display: 'flex', gap: 3 }}>
-            {(['critical', 'high', 'medium', 'low'] as SeverityLevel[]).map(sev => (
-              <button 
-                key={sev} 
-                onClick={() => toggleThreatType(sev)} 
-                style={{ 
-                  padding: '4px 8px', 
-                  borderRadius: 3, 
-                  fontSize: 10, 
-                  letterSpacing: 1, 
-                  fontWeight: 700, 
-                  background: filters.threatTypes.has(sev) ? SEV[sev].bg : 'transparent', 
-                  color: filters.threatTypes.has(sev) ? SEV[sev].color : '#556', 
-                  border: `1px solid ${filters.threatTypes.has(sev) ? SEV[sev].color + '55' : 'rgba(0,212,255,0.07)'}`, 
-                  cursor: 'pointer', 
-                  transition: 'all 0.12s', 
-                  fontFamily: "'Share Tech Mono',monospace" 
-                }}
-              >
-                {sev.slice(0, 3).toUpperCase()}
-              </button>
-            ))}
-          </div>
-          
-          <div style={{ width: 1, height: 18, background: 'rgba(0,212,255,0.12)' }}/>
-          
           {/* Date Range */}
           <span style={{ fontSize: 10, color: '#8899aa', letterSpacing: 1 }}>RANGE:</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {([
-              { id: '1d', label: '1D' },
-              { id: '7d', label: '7D' },
-              { id: '14d', label: '14D' },
+              { id: '1d', label: '1d' },
+              { id: '7d', label: '7d' },
+              { id: '14d', label: '14d' },
               { id: 'custom', label: '⋯' },
             ] as { id: DateRange; label: string }[]).map(r => (
               <button 
@@ -277,65 +218,15 @@ function Reports(): ReactElement {
       {/* Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <Routes>
-          <Route path="/" element={<Navigate to="/reports/summary" replace />} />
-          <Route path="summary" element={
-            <div className="page" style={{ padding: 20, overflow: 'auto', flex: 1 }}>
-              <div className="stat-grid">
-                <div className="stat-card">
-                  <div className="stat-label">Total Detections</div>
-                  <div className="stat-value">242</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Critical Threats</div>
-                  <div className="stat-value danger">21</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Avg Response Time</div>
-                  <div className="stat-value">2.4s</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Detection Rate</div>
-                  <div className="stat-value success">98.7%</div>
-                </div>
-              </div>
-
-              <div className="card" style={{ marginTop: 24 }}>
-                <div className="card-title">Recent Activity</div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(0, 212, 255, 0.15)' }}>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', color: '#00d4ff88', letterSpacing: 1.5, fontWeight: 700 }}>DATE</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', color: '#00d4ff88', letterSpacing: 1.5, fontWeight: 700 }}>DETECTED</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', color: '#ff2d55', letterSpacing: 1.5, fontWeight: 700 }}>CRITICAL</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', color: '#ff8c00', letterSpacing: 1.5, fontWeight: 700 }}>HIGH</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', color: '#ffd60a', letterSpacing: 1.5, fontWeight: 700 }}>MEDIUM</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', color: '#30d158', letterSpacing: 1.5, fontWeight: 700 }}>LOW</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mockData.map(row => (
-                        <tr key={row.date} style={{ borderBottom: '1px solid rgba(0, 212, 255, 0.06)' }}>
-                          <td style={{ padding: '12px 16px', color: '#7ecfff' }}>{row.date}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#e8eaf0', fontWeight: 700 }}>{row.detected}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ff2d55' }}>{row.critical}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ff8c00' }}>{row.high}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ffd60a' }}>{row.medium}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#30d158' }}>{row.low}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          } />
+          <Route path="/" element={<Navigate to="/reports/events" replace />} />
           <Route path="events" element={
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1 }}>
-              <ReportEventsView 
-                threatTypes={filters.threatTypes}
-                timeRange={timeRange}
-              />
+              <ReportEventsView timeRange={timeRange} />
+            </div>
+          } />
+          <Route path="summary" element={
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, overflow: 'auto' }}>
+              <ReportSummaryView timeRange={timeRange} />
             </div>
           } />
         </Routes>

@@ -134,6 +134,6 @@
   color: #00d4ff;
 }
 
-.stat-value.success { color: #30d158; }
+.stat-value.success { color: #32ade6; }
 .stat-value.warning { color: #ffd60a; }
-.stat-value.danger { color: #ff2d55; }
+.stat-value.danger { color: #ff9500; }

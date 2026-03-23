@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo, type ReactElement } from 'react';
-import { SEV, FREQ_BANDS, type Event, type Detection } from '../utils/droneUtils';
+import { DRONE_COLORS, FREQ_BANDS, type Event, type Detection } from '../utils/droneUtils';
 
 interface FrequencyTabProps {
   event: Event;
@@ -157,7 +157,8 @@ export function FrequencyTab({ event, currentTs }: FrequencyTabProps): ReactElem
 
     // Draw detection frequency lines
     detections.forEach(det => {
-      const color = SEV[det.severity].color;
+      const cfg = DRONE_COLORS[det.colorIndex % DRONE_COLORS.length];
+      const color = cfg.color;
       const isSelected = selected?.id === det.id;
       const samples = det.freqHistory.filter(s => s.ts >= winStart && s.ts <= winEnd);
       
@@ -177,7 +178,7 @@ export function FrequencyTab({ event, currentTs }: FrequencyTabProps): ReactElem
       
       // Draw small dots at endpoints
       if (isSelected) {
-        ctx.shadowColor = SEV[det.severity].glow;
+        ctx.shadowColor = cfg.glow;
         ctx.shadowBlur = 6;
       }
       ctx.fillStyle = color;
@@ -194,7 +195,7 @@ export function FrequencyTab({ event, currentTs }: FrequencyTabProps): ReactElem
     // Draw current time marker
     const nowX = timeToX(currentTs);
     if (nowX >= PADDING.left && nowX <= width - PADDING.right) {
-      ctx.strokeStyle = '#ff2d5588';
+      ctx.strokeStyle = 'rgba(0, 212, 255, 0.5)';
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -317,16 +318,11 @@ export function FrequencyTab({ event, currentTs }: FrequencyTabProps): ReactElem
           flexShrink: 0,
         }}>
           <span style={{ 
-            padding: '2px 6px', 
-            borderRadius: 3, 
-            fontSize: 10, 
-            fontWeight: 700,
-            background: SEV[selected.severity].bg,
-            color: SEV[selected.severity].color,
-            letterSpacing: 1,
-          }}>
-            {selected.severity.toUpperCase()}
-          </span>
+            width: 10, 
+            height: 10, 
+            borderRadius: '50%',
+            background: DRONE_COLORS[selected.colorIndex % DRONE_COLORS.length].color,
+          }} />
           <span style={{ color: '#7ecfff', fontSize: 12 }}>{selected.droneType}</span>
           <span style={{ color: '#556', fontSize: 11 }}>
             Band: {FREQ_BANDS[selected.freqBand].label}

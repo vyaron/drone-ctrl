@@ -1,5 +1,3 @@
-import type { SeverityLevel } from '../../utils/droneUtils';
-
 // Extend Window interface for Google Maps callback
 declare global {
   interface Window {
@@ -9,13 +7,13 @@ declare global {
 }
 
 export type DroneOverlayInstance = google.maps.OverlayView & {
-  update: (position: google.maps.LatLng, color: string, severity: SeverityLevel, isSelected: boolean) => void;
+  update: (position: google.maps.LatLng, color: string, sensorCount: number, isSelected: boolean) => void;
 };
 
 export type DroneOverlayConstructor = new (
   position: google.maps.LatLng,
   color: string,
-  severity: SeverityLevel,
+  sensorCount: number,
   isSelected: boolean,
   onClick: () => void
 ) => DroneOverlayInstance;
@@ -29,7 +27,7 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
   DroneOverlayClass = class extends window.google.maps.OverlayView {
     position: google.maps.LatLng;
     color: string;
-    severity: SeverityLevel;
+    sensorCount: number;
     isSelected: boolean;
     onClick: () => void;
     div: HTMLDivElement | null = null;
@@ -37,14 +35,14 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
     constructor(
       position: google.maps.LatLng, 
       color: string, 
-      severity: SeverityLevel, 
+      sensorCount: number, 
       isSelected: boolean, 
       onClick: () => void
     ) {
       super();
       this.position = position;
       this.color = color;
-      this.severity = severity;
+      this.sensorCount = sensorCount;
       this.isSelected = isSelected;
       this.onClick = onClick;
     }
@@ -61,7 +59,7 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
     
     updateContent() {
       if (!this.div) return;
-      const rings = this.severity === 'critical' ? 3 : this.severity === 'high' ? 2 : 1;
+      const rings = Math.min(this.sensorCount, 3);
       const size = 60;
       const center = size / 2;
       const iconSize = this.isSelected ? 32 : 26;
@@ -90,11 +88,11 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
       `;
     }
     
-    update(position: google.maps.LatLng, color: string, severity: SeverityLevel, isSelected: boolean) {
+    update(position: google.maps.LatLng, color: string, sensorCount: number, isSelected: boolean) {
       this.position = position;
-      const needsRedraw = this.color !== color || this.severity !== severity || this.isSelected !== isSelected;
+      const needsRedraw = this.color !== color || this.sensorCount !== sensorCount || this.isSelected !== isSelected;
       this.color = color;
-      this.severity = severity;
+      this.sensorCount = sensorCount;
       this.isSelected = isSelected;
       if (needsRedraw) this.updateContent();
       this.draw();

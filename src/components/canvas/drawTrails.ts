@@ -1,4 +1,4 @@
-import { project, SEV, type Drone } from '../../utils/droneUtils';
+import { project, DRONE_COLORS, type Drone } from '../../utils/droneUtils';
 
 export interface TrailPoint {
   lat: number;
@@ -55,7 +55,7 @@ export function drawTrails(
     const trail = trails.get(drone.id);
     if (!trail || trail.length === 0) return;
     
-    const cfg = SEV[drone.severity];
+    const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
     const isSel = selected?.id === drone.id;
     const droneAlpha = selected && !isSel ? 0.15 : 1;
     

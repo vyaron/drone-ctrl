@@ -1,5 +1,5 @@
 import { useState, useEffect, type MutableRefObject, type ReactElement } from 'react';
-import { SEV, type Drone } from '../utils/droneUtils';
+import { DRONE_COLORS, type Drone } from '../utils/droneUtils';
 
 interface DetailPanelProps {
   selected: Drone | null;
@@ -44,7 +44,7 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
   if (!displayedDrone) return null;
   
   const drone = displayedDrone;
-  const cfg = SEV[drone.severity];
+  const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
   const elapsed = Math.floor((Date.now() - drone.detectedMs) / 1000);
 
   return (
@@ -77,11 +77,25 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
           borderRadius: "50%",
           background: cfg.color,
           boxShadow: `0 0 12px ${cfg.glow}`,
-          animation: drone.status === "active" && drone.severity === "critical" ? "blink 1.1s ease-in-out infinite" : "none"
         }}/>
         <div style={{ flex: 1 }}>
-          <div style={{ color: "#fff", fontSize: 15, fontWeight: 700, letterSpacing: 0.5 }}>{drone.model}</div>
-          <div style={{ color: cfg.color, fontSize: 11, marginTop: 2 }}>{cfg.label} THREAT</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: "#fff", fontSize: 15, fontWeight: 700, letterSpacing: 0.5 }}>{drone.model}</span>
+            {drone.level && (
+              <span style={{ 
+                fontSize: 9,
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: 3,
+                letterSpacing: 0.5,
+                color: '#7ecfff',
+                background: 'rgba(126,207,255,0.15)',
+              }}>
+                {drone.level === 'location' ? 'GEO' : drone.level === 'direction' ? 'DIR' : 'DETECT'}
+              </span>
+            )}
+          </div>
+          <div style={{ color: cfg.color, fontSize: 11, marginTop: 2 }}>DRONE</div>
         </div>
         <button 
           onClick={onClose}
@@ -106,29 +120,6 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-        {/* Threat Score */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 10, color: "#8899aa", letterSpacing: 2, marginBottom: 6 }}>THREAT SCORE</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 40, color: cfg.color, fontWeight: 700, lineHeight: 1 }}>{drone.threatScore}</span>
-            <span style={{ color: "#8899aa", fontSize: 20 }}>/ 100</span>
-          </div>
-          <div style={{ 
-            height: 4, 
-            background: "rgba(0,212,255,0.1)", 
-            borderRadius: 2, 
-            marginTop: 8,
-            overflow: "hidden"
-          }}>
-            <div style={{ 
-              width: `${drone.threatScore}%`, 
-              height: "100%", 
-              background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}88)`,
-              borderRadius: 2
-            }}/>
-          </div>
-        </div>
-
         {/* Status */}
         <div style={{ 
           background: "rgba(0,212,255,0.04)", 
@@ -140,7 +131,8 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ color: "#8899aa", fontSize: 11 }}>STATUS</span>
             <span style={{ 
-              color: drone.status === "active" ? "#30d158" : "#ff2d55",
+              color: "#7ecfff",
+              opacity: drone.status === "active" ? 1 : 0.4,
               fontSize: 11,
               fontWeight: 700
             }}>
@@ -157,10 +149,8 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
         <div style={{ fontSize: 10, color: "#8899aa", letterSpacing: 2, marginBottom: 10 }}>FLIGHT DATA</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
           {[
-            { label: "ALTITUDE", value: `${drone.altitude}m`, unit: "" },
-            { label: "SPEED", value: `${drone.speed}`, unit: "km/h" },
             { label: "HEADING", value: `${Math.round(drone.heading)}°`, unit: "" },
-            { label: "RF SIGNAL", value: `${drone.rfSig}`, unit: "dBm" },
+            { label: "FREQ", value: `${drone.currentFreq.toFixed(1)}`, unit: "MHz" },
           ].map(item => (
             <div key={item.label} style={{
               background: "rgba(0,212,255,0.03)",
@@ -177,8 +167,10 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
           ))}
         </div>
 
-        {/* Location */}
-        <div style={{ fontSize: 10, color: "#8899aa", letterSpacing: 2, marginBottom: 10 }}>LOCATION</div>
+        {/* Location / Direction / Detection Info */}
+        <div style={{ fontSize: 10, color: "#8899aa", letterSpacing: 2, marginBottom: 10 }}>
+          {!drone.level || drone.level === 'location' ? 'LOCATION' : drone.level === 'direction' ? 'DIRECTION' : 'DETECTION'}
+        </div>
         <div style={{
           background: "rgba(0,212,255,0.03)",
           borderRadius: 6,
@@ -186,14 +178,34 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
           border: "1px solid rgba(0,212,255,0.06)",
           marginBottom: 20
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ color: "#8899aa", fontSize: 10 }}>LATITUDE</span>
-            <span style={{ color: "#7ecfff", fontSize: 12 }}>{drone.lat.toFixed(6)}°N</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#8899aa", fontSize: 10 }}>LONGITUDE</span>
-            <span style={{ color: "#7ecfff", fontSize: 12 }}>{drone.lon.toFixed(6)}°E</span>
-          </div>
+          {(!drone.level || drone.level === 'location') ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ color: "#8899aa", fontSize: 10 }}>LATITUDE</span>
+                <span style={{ color: "#7ecfff", fontSize: 12 }}>{drone.lat.toFixed(6)}°N</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#8899aa", fontSize: 10 }}>LONGITUDE</span>
+                <span style={{ color: "#7ecfff", fontSize: 12 }}>{drone.lon.toFixed(6)}°E</span>
+              </div>
+            </>
+          ) : drone.level === 'direction' ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ color: "#8899aa", fontSize: 10 }}>BEARING</span>
+                <span style={{ color: "#f59e0b", fontSize: 12 }}>{drone.bearing ?? 0}°</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#8899aa", fontSize: 10 }}>WIDTH</span>
+                <span style={{ color: "#f59e0b", fontSize: 12 }}>±{(drone.bearingWidth ?? 30) / 2}°</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8899aa", fontSize: 10 }}>SENSOR</span>
+              <span style={{ color: "#8b5cf6", fontSize: 12 }}>{drone.sensorId || drone.detectedBy[0]}</span>
+            </div>
+          )}
         </div>
 
         {/* Detected By */}
@@ -213,43 +225,6 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
             </span>
           ))}
         </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ 
-        padding: "12px 20px", 
-        borderTop: "1px solid rgba(0,212,255,0.1)",
-        display: "flex",
-        gap: 10
-      }}>
-        <button style={{
-          flex: 1,
-          padding: "10px",
-          background: "rgba(255,45,85,0.1)",
-          border: "1px solid rgba(255,45,85,0.3)",
-          borderRadius: 4,
-          color: "#ff2d55",
-          fontSize: 11,
-          letterSpacing: 1,
-          cursor: "pointer",
-          fontFamily: "'Share Tech Mono', monospace"
-        }}>
-          NEUTRALIZE
-        </button>
-        <button style={{
-          flex: 1,
-          padding: "10px",
-          background: "rgba(0,212,255,0.06)",
-          border: "1px solid rgba(0,212,255,0.2)",
-          borderRadius: 4,
-          color: "#00d4ff",
-          fontSize: 11,
-          letterSpacing: 1,
-          cursor: "pointer",
-          fontFamily: "'Share Tech Mono', monospace"
-        }}>
-          TRACK
-        </button>
       </div>
     </div>
   );

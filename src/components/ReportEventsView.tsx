@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, type ReactElement } from 'react';
 import {
-  SEV,
+  DRONE_COLORS,
   generateMockEvents,
-  type SeverityLevel,
   type Event,
   type Detection,
   type Drone,
@@ -13,7 +12,6 @@ import { HistoricalTimeline } from './HistoricalTimeline';
 import { FrequencyTab } from './FrequencyTab';
 
 interface ReportEventsViewProps {
-  threatTypes: Set<SeverityLevel>;
   timeRange: { start: number; end: number };
 }
 
@@ -43,7 +41,7 @@ function getEventThreats(event: Event): string[] {
   return [...new Set(event.detections.map(d => d.droneType))];
 }
 
-export default function ReportEventsView({ threatTypes, timeRange }: ReportEventsViewProps): ReactElement {
+export default function ReportEventsView({ timeRange }: ReportEventsViewProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // State
@@ -58,8 +56,8 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
 
   // Generate mock events
   const events = useMemo(
-    () => generateMockEvents(timeRange, threatTypes),
-    [timeRange.start, timeRange.end, threatTypes]
+    () => generateMockEvents(timeRange),
+    [timeRange.start, timeRange.end]
   );
 
   // Auto-select first event when events change (Q13)
@@ -281,15 +279,20 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
                             <thead>
                               <tr style={{ borderBottom: '1px solid rgba(0, 212, 255, 0.1)' }}>
                                 <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>ID</th>
-                                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>STARTED</th>
-                                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>ENDED</th>
+                                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>LEVEL</th>
                                 <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>DURATION</th>
                                 <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>THREAT TYPE</th>
                                 <th style={{ padding: '6px 8px', textAlign: 'left', color: '#00d4ff66', fontSize: 9, letterSpacing: 1 }}>FREQUENCIES</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {event.detections.map(det => (
+                              {event.detections.map(det => {
+                                const levelBadge = { 
+                                  label: det.level === 'location' ? 'GEO' : det.level === 'direction' ? 'DIR' : 'DETECT', 
+                                  color: '#7ecfff', 
+                                  bg: 'rgba(126,207,255,0.15)' 
+                                };
+                                return (
                                 <tr
                                   key={det.id}
                                   onClick={() => setSelectedEvent(event)}
@@ -299,13 +302,29 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
                                   }}
                                 >
                                   <td style={{ padding: '6px 8px', color: '#7ecfff' }}>{det.id.split('-').pop()}</td>
-                                  <td style={{ padding: '6px 8px', color: '#ccd' }}>{formatDateTime(det.startedAt)}</td>
-                                  <td style={{ padding: '6px 8px', color: '#ccd' }}>{formatDateTime(det.endedAt)}</td>
-                                  <td style={{ padding: '6px 8px', color: '#7ecfff' }}>{formatDuration(det.endedAt - det.startedAt)}</td>
                                   <td style={{ padding: '6px 8px' }}>
                                     <span style={{ 
-                                      color: SEV[det.severity].color,
-                                      background: SEV[det.severity].bg,
+                                      fontSize: 9,
+                                      fontWeight: 700,
+                                      padding: '2px 5px',
+                                      borderRadius: 3,
+                                      color: levelBadge.color,
+                                      background: levelBadge.bg,
+                                      letterSpacing: 0.5,
+                                    }}>
+                                      {levelBadge.label}
+                                    </span>
+                                  </td>
+                                  <td 
+                                    style={{ padding: '6px 8px', color: '#7ecfff', cursor: 'help' }}
+                                    title={`Started: ${formatDateTime(det.startedAt)}\nEnded: ${formatDateTime(det.endedAt)}`}
+                                  >
+                                    {formatDuration(det.endedAt - det.startedAt)}
+                                  </td>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <span style={{ 
+                                      color: DRONE_COLORS[det.colorIndex % DRONE_COLORS.length].color,
+                                      background: DRONE_COLORS[det.colorIndex % DRONE_COLORS.length].bg,
                                       padding: '2px 6px',
                                       borderRadius: 3,
                                       fontSize: 10,
@@ -336,7 +355,7 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
                                     </div>
                                   </td>
                                 </tr>
-                              ))}
+                              );})}
                             </tbody>
                           </table>
                         </div>
@@ -439,6 +458,8 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
                 onSelect={setSelectedDrone}
                 mode={viewTab === 'tactical' ? 'canvas' : 'google'}
                 paused={!replay.isPlaying}
+                detections={selectedEvent?.detections}
+                currentTs={replay.currentTs}
               />
             )
           ) : (
@@ -467,9 +488,9 @@ export default function ReportEventsView({ threatTypes, timeRange }: ReportEvent
                   width: 32,
                   height: 32,
                   borderRadius: 4,
-                  background: replay.isPlaying ? 'rgba(255,45,85,0.15)' : 'rgba(0,212,255,0.15)',
-                  border: `1px solid ${replay.isPlaying ? 'rgba(255,45,85,0.3)' : 'rgba(0,212,255,0.3)'}`,
-                  color: replay.isPlaying ? '#ff2d55' : '#00d4ff',
+                  background: replay.isPlaying ? 'rgba(0,212,255,0.25)' : 'rgba(0,212,255,0.15)',
+                  border: `1px solid ${replay.isPlaying ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.3)'}`,
+                  color: '#00d4ff',
                   cursor: 'pointer',
                   fontSize: 14,
                   display: 'flex',

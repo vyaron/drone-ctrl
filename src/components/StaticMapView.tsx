@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, type ReactElement } from 'react';
-import { type Drone } from '../utils/droneUtils';
+import { type Drone, type Detection } from '../utils/droneUtils';
 import { CanvasMapView } from './CanvasMapView';
 import { GoogleMapView } from './GoogleMapView';
 
@@ -9,6 +9,8 @@ interface StaticMapViewProps {
   onSelect: (drone: Drone | null) => void;
   mode?: 'canvas' | 'google';
   paused?: boolean;
+  detections?: Detection[];  // For rendering direction/detection-level visualizations
+  currentTs?: number;        // For filtering active detections
 }
 
 // Wrapper that converts static drones array to ref for existing map components
@@ -17,14 +19,18 @@ export function StaticMapView({
   selected, 
   onSelect, 
   mode = 'canvas',
-  paused = false
+  paused = false,
+  detections = [],
+  currentTs = Date.now()
 }: StaticMapViewProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const dronesRef = useRef<Drone[]>(drones);
+  const detectionsRef = useRef<Detection[]>(detections);
   const [dims, setDims] = useState({ w: 800, h: 500 });
   
-  // Keep ref in sync with props - update synchronously before render
+  // Keep refs in sync with props - update synchronously before render
   dronesRef.current = drones;
+  detectionsRef.current = detections;
   
   // Track container dimensions
   useEffect(() => {
@@ -50,6 +56,8 @@ export function StaticMapView({
           filterFn={filterFn}
           dims={dims}
           paused={paused}
+          detectionsRef={detectionsRef}
+          currentTs={currentTs}
         />
       ) : (
         <GoogleMapView
