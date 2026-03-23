@@ -8,6 +8,22 @@ export interface SeverityConfig {
   bg: string;
 }
 
+export interface FreqSample {
+  ts: number;        // timestamp in ms
+  freq: number;      // frequency in MHz (100-6000)
+  strength: number;  // signal strength 0-100
+}
+
+// Common drone frequency bands (MHz)
+export const FREQ_BANDS = {
+  BAND_475: { min: 475, max: 495, label: '475 MHz', color: 'rgba(138,43,226,0.15)' },
+  BAND_750: { min: 750, max: 850, label: '750-850', color: 'rgba(255,45,85,0.15)' },
+  BAND_900: { min: 902, max: 928, label: '902-928', color: 'rgba(255,140,0,0.15)' },
+  ISM_2_4G: { min: 2390, max: 2500, label: 'ISM 2.4G', color: 'rgba(255,214,10,0.15)' },
+  BAND_5150: { min: 5150, max: 5200, label: '5.1G', color: 'rgba(0,212,255,0.15)' },
+  ISM_5_8G: { min: 5700, max: 5900, label: 'ISM 5.8G', color: 'rgba(48,209,88,0.15)' },
+} as const;
+
 export interface Drone {
   id: string;
   model: string;
@@ -28,6 +44,9 @@ export interface Drone {
   threatScore: number;
   rfSig: number;
   detectedBy: string[];
+  freqHistory: FreqSample[];
+  currentFreq: number;       // current frequency in MHz
+  freqBand: keyof typeof FREQ_BANDS; // which band this drone operates in
 }
 
 export interface Sensor {
@@ -97,6 +116,44 @@ export function project(lat: number, lon: number, w: number, h: number): { x: nu
 
 let droneId = 1;
 
+// Generate a random frequency within a band with slight jitter
+export function getFreqInBand(band: keyof typeof FREQ_BANDS): number {
+  const { min, max } = FREQ_BANDS[band];
+  return rand(min, max);
+}
+
+// Add a freq sample to drone's history
+export function addFreqSample(drone: Drone, ts: number): void {
+  const band = FREQ_BANDS[drone.freqBand];
+  const bandRange = band.max - band.min;
+  
+  // More aggressive frequency hopping
+  const hopChance = Math.random();
+  if (hopChance < 0.25) {
+    // Big jump - anywhere in band
+    drone.currentFreq = getFreqInBand(drone.freqBand);
+  } else if (hopChance < 0.5) {
+    // Medium jump - 20-50% of band range
+    const jump = rand(-0.25, 0.25) * bandRange;
+    drone.currentFreq = Math.max(band.min, Math.min(band.max, drone.currentFreq + jump));
+  } else {
+    // Small drift
+    const drift = rand(-0.1, 0.1) * bandRange;
+    drone.currentFreq = Math.max(band.min, Math.min(band.max, drone.currentFreq + drift));
+  }
+  
+  drone.freqHistory.push({
+    ts,
+    freq: drone.currentFreq,
+    strength: randInt(40, 95),
+  });
+  
+  // Keep history bounded (last 5 min at 250ms = 1200 samples max)
+  if (drone.freqHistory.length > 1200) {
+    drone.freqHistory.shift();
+  }
+}
+
 export function spawnDrone(detectAt: number): Drone {
   const sev = pick<SeverityLevel>(["critical", "high", "medium", "low"]);
   const model = pick(DRONE_MODELS[sev]);
@@ -108,6 +165,45 @@ export function spawnDrone(detectAt: number): Drone {
   const sensorsCount = randInt(1, 3);
   const shuffled = [...SENSORS_BASE].sort(() => Math.random() - 0.5);
   const detectedBy = shuffled.slice(0, sensorsCount).map(s => s.id);
+
+  // Assign random frequency band - weighted towards common bands
+  const bandOptions: (keyof typeof FREQ_BANDS)[] = [
+    'ISM_2_4G', 'ISM_2_4G', 'ISM_2_4G', // Most common
+    'ISM_5_8G', 'ISM_5_8G',
+    'BAND_5150',
+    'BAND_900',
+    'BAND_750',
+    'BAND_475',
+  ];
+  const freqBand = pick(bandOptions);
+  const currentFreq = getFreqInBand(freqBand);
+  
+  // Generate initial freq history going back from detection time
+  const freqHistory: FreqSample[] = [];
+  const historyDuration = Math.min(detectAt - (Date.now() - WINDOW_SEC * 1000), 60000); // up to 1 min of history
+  if (historyDuration > 0) {
+    let tempFreq = currentFreq;
+    const band = FREQ_BANDS[freqBand];
+    const bandRange = band.max - band.min;
+    for (let t = detectAt - historyDuration; t <= detectAt; t += 250) {
+      // More varied hopping simulation
+      const hopChance = Math.random();
+      if (hopChance < 0.25) {
+        tempFreq = getFreqInBand(freqBand);
+      } else if (hopChance < 0.5) {
+        const jump = rand(-0.25, 0.25) * bandRange;
+        tempFreq = Math.max(band.min, Math.min(band.max, tempFreq + jump));
+      } else {
+        const drift = rand(-0.1, 0.1) * bandRange;
+        tempFreq = Math.max(band.min, Math.min(band.max, tempFreq + drift));
+      }
+      freqHistory.push({
+        ts: t,
+        freq: tempFreq,
+        strength: randInt(40, 95),
+      });
+    }
+  }
 
   return {
     id: `drone-${droneId++}`,
@@ -129,6 +225,9 @@ export function spawnDrone(detectAt: number): Drone {
     threatScore: randInt(30, 99),
     rfSig: randInt(-90, -30),
     detectedBy,
+    freqHistory,
+    currentFreq,
+    freqBand,
   };
 }
 

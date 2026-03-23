@@ -29,7 +29,7 @@ function App(): ReactElement {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/live/*" element={<Live />} />
-          <Route path="/reports" element={<Reports />} />
+          <Route path="/reports/*" element={<Reports />} />
         </Routes>
       </main>
     </div>

@@ -12,6 +12,7 @@ import {
   pick, 
   randInt,
   rand,
+  addFreqSample,
   type Drone,
   type SeverityLevel
 } from '../utils/droneUtils';
@@ -163,6 +164,20 @@ function Live(): ReactElement {
     
     raf = requestAnimationFrame(moveDrones);
     return () => cancelAnimationFrame(raf);
+  }, [running]);
+
+  // Frequency sampling - add new freq samples every 250ms
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      const now = Date.now();
+      dronesRef.current.forEach(d => {
+        if (d.status === "active") {
+          addFreqSample(d, now);
+        }
+      });
+    }, 250);
+    return () => clearInterval(id);
   }, [running]);
 
   const winEnd = now;
