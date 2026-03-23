@@ -2,6 +2,7 @@ import { useState, useMemo, type ReactElement } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { SEV, type SeverityLevel } from '../utils/droneUtils';
 import ReportFrequencyView from '../components/ReportFrequencyView';
+import ReportEventsView from '../components/ReportEventsView';
 
 type DateRange = '1h' | '8h' | '24h' | 'custom';
 
@@ -147,6 +148,7 @@ function Reports(): ReactElement {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {[
             { id: 'summary', icon: '▦', label: 'SUMMARY' },
+            { id: 'events', icon: '⚡', label: 'EVENTS' },
             { id: 'frequency', icon: '〜', label: 'FREQUENCY' },
           ].map(t => (
             <Link 
@@ -328,6 +330,14 @@ function Reports(): ReactElement {
                   </table>
                 </div>
               </div>
+            </div>
+          } />
+          <Route path="events" element={
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1 }}>
+              <ReportEventsView 
+                threatTypes={filters.threatTypes}
+                timeRange={timeRange}
+              />
             </div>
           } />
           <Route path="frequency" element={

@@ -12,13 +12,13 @@ Add a report: Events
 
 - Resizable split view: **Table** | **Map**
 
-> ❓ **Q1**: What's the default split ratio? (50/50, 60/40 table-heavy, 70/30?)
+> ✅ **Q1**: What's the default split ratio? (50/50, 60/40 table-heavy, 70/30?)
 50/50
 
-> ❓ **Q2**: Should the map show ALL events from the filtered list, or only the selected event?
+> ✅ **Q2**: Should the map show ALL events from the filtered list, or only the selected event?
 SELECTED
 
-> ❓ **Q3**: Should map show drone trails for the event duration, or just snapshot positions?
+> ✅ **Q3**: Should map show drone trails for the event duration, or just snapshot positions?
 SNAPSHOT
 
 ---
@@ -37,13 +37,13 @@ SNAPSHOT
 **Sample row:**
 | 7 | 2026-03-19 18:38:07 | 2026-03-19 19:01:46 | 23m | Autel EVO Nano+, DJI Phantom 4 Pro | 🗺️ ▼ |
 
-> ❓ **Q4**: Should rows be sortable by clicking column headers?
+> ✅ **Q4**: Should rows be sortable by clicking column headers?
 YES
 
-> ❓ **Q5**: Should there be a "severity" column showing the highest severity among threats?
+> ✅ **Q5**: Should there be a "severity" column showing the highest severity among threats?
 NO
 
-> ❓ **Q6**: Pagination or infinite scroll for many events?
+> ✅ **Q6**: Pagination or infinite scroll for many events?
 NO, its just a demo
 ---
 
@@ -60,13 +60,13 @@ When clicking ▼, show nested table of individual detections within that event:
 | Threat Type | Single drone type |
 | Frequencies | List of detected frequencies |
 
-> ❓ **Q7**: Should clicking a detection row highlight that specific drone on the map?
+> ✅ **Q7**: Should clicking a detection row highlight that specific drone on the map?
 OK
 
-> ❓ **Q8**: Should frequencies link to the Frequency View filtered to that time range?
+> ✅ **Q8**: Should frequencies link to the Frequency View filtered to that time range?
 OK
 
-> ❓ **Q9**: Show frequency as single value, range (e.g., "2.4GHz - 5.8GHz"), or list all bands?
+> ✅ **Q9**: Show frequency as single value, range (e.g., "2.4GHz - 5.8GHz"), or list all bands?
 LIST
 
 ---
@@ -92,15 +92,15 @@ interface Event {
 }
 ```
 
-> ❓ **Q10**: How is an "Event" defined? 
+> ✅ **Q10**: How is an "Event" defined? 
 >   X Time-based grouping (detections within X minutes)?
 >   - Geographic proximity (drones within Y meters)?
 >   - Manual operator-defined?
 
-> ❓ **Q11**: Should events have a status? (e.g., "active", "resolved", "investigating")
+> ✅ **Q11**: Should events have a status? (e.g., "active", "resolved", "investigating")
 NO
 
-> ❓ **Q12**: Are events persisted to backend, or derived from detection data on-the-fly?
+> ✅ **Q12**: Are events persisted to backend, or derived from detection data on-the-fly?
 FRONTEND ONLY
 
 ---
@@ -109,34 +109,34 @@ FRONTEND ONLY
 
 When an event row is selected/expanded:
 
-> ❓ **Q13**: Should map auto-zoom to fit all detections in the event?
+> ✅ **Q13**: Should map auto-zoom to fit all detections in the event?
 OK
 
-> ❓ **Q14**: Show sensor coverage areas on the map?
+> ✅ **Q14**: Show sensor coverage areas on the map?
 YES
 
-> ❓ **Q15**: Timeline scrubber to replay the event? Or static view only?
+> ✅ **Q15**: Timeline scrubber to replay the event? Or static view only?
 YES
 
 ---
 
 ## Implementation Tasks
 
-1. [ ] Define Event and Detection interfaces in droneUtils.ts
-2. [ ] Create mock/simulated event data generator
-3. [ ] Create `ReportEventsView.tsx` component
-4. [ ] Implement resizable split pane (table | map)
-5. [ ] Build events table with sortable columns
-6. [ ] Implement expandable row with nested detections table
-7. [ ] Wire up map to show selected event positions
-8. [ ] Add route `/reports/events` to Reports.tsx navigation
+1. [x] Define Event and Detection interfaces in droneUtils.ts
+2. [x] Create mock/simulated event data generator
+3. [x] Create `ReportEventsView.tsx` component
+4. [x] Implement resizable split pane (table | map)
+5. [x] Build events table with sortable columns
+6. [x] Implement expandable row with nested detections table
+7. [x] Wire up map to show selected event positions
+8. [x] Add route `/reports/events` to Reports.tsx navigation
 
 ---
 
 ## Files
 
 - [Reports.tsx](../src/pages/Reports.tsx) - Main reports page with navigation
-- `ReportEventsView.tsx` (new) - Events table + map split view
+- [ReportEventsView.tsx](../src/components/ReportEventsView.tsx) - Events table + map split view
 - [droneUtils.ts](../src/utils/droneUtils.ts) - Event/Detection types
 
 

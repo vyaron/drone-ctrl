@@ -242,3 +242,92 @@ export function tickSensors(dt: number): Sensor[] {
   });
   return sensorState;
 }
+
+// ====== Events Report Types ======
+
+export interface Detection {
+  id: string;
+  droneId: string;
+  droneType: string;          // e.g., "DJI Phantom 4 Pro"
+  severity: SeverityLevel;
+  startedAt: number;          // timestamp ms
+  endedAt: number;            // timestamp ms
+  frequencies: number[];      // MHz values detected
+  lat: number;
+  lon: number;
+}
+
+export interface Event {
+  id: string;
+  startedAt: number;
+  endedAt: number;
+  detections: Detection[];
+}
+
+// Generate mock events for the Events Report
+export function generateMockEvents(
+  timeRange: { start: number; end: number },
+  threatTypes: Set<SeverityLevel>
+): Event[] {
+  const events: Event[] = [];
+  const duration = timeRange.end - timeRange.start;
+  
+  // Generate 5-12 events spread across time range
+  const eventCount = 5 + Math.floor(Math.random() * 8);
+  const severities: SeverityLevel[] = ['critical', 'high', 'medium', 'low'];
+  
+  for (let i = 0; i < eventCount; i++) {
+    const eventStart = timeRange.start + (i / eventCount) * duration * 0.8 + Math.random() * duration * 0.1;
+    const eventDuration = randInt(5, 45) * 60 * 1000; // 5-45 minutes
+    const eventEnd = Math.min(eventStart + eventDuration, timeRange.end);
+    
+    // Generate 1-5 detections per event
+    const detectionCount = randInt(1, 5);
+    const detections: Detection[] = [];
+    
+    for (let j = 0; j < detectionCount; j++) {
+      const severity = pick(severities);
+      if (!threatTypes.has(severity)) continue;
+      
+      const detStart = eventStart + Math.random() * (eventEnd - eventStart) * 0.3;
+      const detDuration = randInt(2, 20) * 60 * 1000; // 2-20 minutes
+      const detEnd = Math.min(detStart + detDuration, eventEnd);
+      
+      // Generate random frequencies detected
+      const freqBand = pick(['ISM_2_4G', 'ISM_5_8G', 'BAND_5150', 'BAND_900'] as (keyof typeof FREQ_BANDS)[]);
+      const band = FREQ_BANDS[freqBand];
+      const frequencies: number[] = [];
+      const freqCount = randInt(1, 4);
+      for (let f = 0; f < freqCount; f++) {
+        frequencies.push(Math.round(rand(band.min, band.max)));
+      }
+      
+      detections.push({
+        id: `det-${i + 1}-${j + 1}`,
+        droneId: `drone-evt-${i + 1}-${j + 1}`,
+        droneType: pick(DRONE_MODELS[severity]),
+        severity,
+        startedAt: detStart,
+        endedAt: detEnd,
+        frequencies: frequencies.sort((a, b) => a - b),
+        lat: rand(LAT_MIN, LAT_MAX),
+        lon: rand(LON_MIN, LON_MAX),
+      });
+    }
+    
+    if (detections.length === 0) continue;
+    
+    // Sort detections by start time
+    detections.sort((a, b) => a.startedAt - b.startedAt);
+    
+    events.push({
+      id: `event-${i + 1}`,
+      startedAt: Math.min(...detections.map(d => d.startedAt)),
+      endedAt: Math.max(...detections.map(d => d.endedAt)),
+      detections,
+    });
+  }
+  
+  // Sort events by start time descending (newest first)
+  return events.sort((a, b) => b.startedAt - a.startedAt);
+}
