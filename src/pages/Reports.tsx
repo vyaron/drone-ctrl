@@ -4,7 +4,7 @@ import { SEV, type SeverityLevel } from '../utils/droneUtils';
 import ReportFrequencyView from '../components/ReportFrequencyView';
 import ReportEventsView from '../components/ReportEventsView';
 
-type DateRange = '1h' | '8h' | '24h' | 'custom';
+type DateRange = '1d' | '7d' | '14d' | 'custom';
 
 interface ReportFilters {
   threatTypes: Set<SeverityLevel>;
@@ -22,10 +22,10 @@ function getTimeRange(filters: ReportFilters): { start: number; end: number } {
   
   let start: number;
   switch (filters.dateRange) {
-    case '1h': start = now - 60 * 60 * 1000; break;
-    case '8h': start = now - 8 * 60 * 60 * 1000; break;
-    case '24h': start = now - 24 * 60 * 60 * 1000; break;
-    case 'custom': start = filters.customStart?.getTime() ?? now - 60 * 60 * 1000; break;
+    case '1d': start = now - 24 * 60 * 60 * 1000; break;
+    case '7d': start = now - 7 * 24 * 60 * 60 * 1000; break;
+    case '14d': start = now - 14 * 24 * 60 * 60 * 1000; break;
+    case 'custom': start = filters.customStart?.getTime() ?? now - 24 * 60 * 60 * 1000; break;
   }
   return { start, end };
 }
@@ -46,7 +46,7 @@ function Reports(): ReactElement {
   // Common filter state
   const [filters, setFilters] = useState<ReportFilters>({
     threatTypes: new Set(['critical', 'high', 'medium', 'low'] as SeverityLevel[]),
-    dateRange: '1h',
+    dateRange: '1d',
   });
   
   const [customStartStr, setCustomStartStr] = useState('');
@@ -68,9 +68,9 @@ function Reports(): ReactElement {
 
   const setDateRange = (range: DateRange) => {
     if (range === 'custom') {
-      // Initialize with current range values
+      // Initialize with current range values (1 day back)
       const now = new Date();
-      const start = new Date(now.getTime() - 60 * 60 * 1000);
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       setCustomStartStr(start.toISOString().slice(0, 16));
       setCustomEndStr(now.toISOString().slice(0, 16));
       setFilters(f => ({ 
@@ -212,9 +212,9 @@ function Reports(): ReactElement {
           <span style={{ fontSize: 10, color: '#8899aa', letterSpacing: 1 }}>RANGE:</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {([
-              { id: '1h', label: '1H' },
-              { id: '8h', label: '8H' },
-              { id: '24h', label: '24H' },
+              { id: '1d', label: '1D' },
+              { id: '7d', label: '7D' },
+              { id: '14d', label: '14D' },
               { id: 'custom', label: '⋯' },
             ] as { id: DateRange; label: string }[]).map(r => (
               <button 
