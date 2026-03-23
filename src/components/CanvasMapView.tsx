@@ -53,6 +53,10 @@ export function CanvasMapView({
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   
+  // Keep currentTs in ref so animation loop can access latest value
+  const currentTsRef = useRef(currentTs);
+  currentTsRef.current = currentTs;
+  
   // Hit areas for direction wedges and detection indicators
   const wedgeHitAreasRef = useRef<WedgeHitInfo[]>([]);
   const detectionHitAreasRef = useRef<DetectionHitInfo[]>([]);
@@ -107,7 +111,39 @@ export function CanvasMapView({
 
       // Draw direction wedges and detection indicators (if detections provided)
       const detections = detectionsRef?.current || [];
-      const replayTs = currentTs ?? ts;
+      const replayTs = currentTsRef.current ?? ts;
+      
+      // DEBUG: very visible logging - log on every significant change
+      if (detections.length > 0) {
+        const now = Date.now();
+        const dirDets = detections.filter(d => d.level === 'direction');
+        const detDets = detections.filter(d => d.level === 'detection');
+        const activeDir = dirDets.filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
+        const activeDet = detDets.filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
+        
+        // Log every 500ms to see progression
+        if (!('_lastCanvasLog' in window) || now - (window as any)._lastCanvasLog > 500) {
+          (window as any)._lastCanvasLog = now;
+          
+          // Format timestamps as readable
+          const fmt = (t: number) => new Date(t).toISOString().substr(11, 12);
+          
+          console.log('%c[Replay Debug]', 'background: purple; color: white;', {
+            replayTs: fmt(replayTs),
+            replayTsRaw: replayTs,
+            activeDir: activeDir.length,
+            activeDet: activeDet.length,
+            ranges: detections.map(d => ({
+              lvl: d.level.charAt(0).toUpperCase(),
+              start: fmt(d.startedAt),
+              end: fmt(d.endedAt),
+              startRaw: d.startedAt,
+              endRaw: d.endedAt,
+              ok: replayTs >= d.startedAt && replayTs <= d.endedAt ? '✓' : '✗'
+            }))
+          });
+        }
+      }
       
       // Clear hit areas each frame
       const newWedgeHitAreas: WedgeHitInfo[] = [];
@@ -116,17 +152,43 @@ export function CanvasMapView({
       if (detections.length > 0) {
         // Draw direction wedges first (behind drones) - NOT detection level ones
         // And collect hit areas for click handling
-        detections
+        const activeDirectionDets = detections
           .filter(d => d.level === 'direction')
-          .filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt)
-          .forEach(det => {
+          .filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
+        
+        // DEBUG: Log when drawing wedges
+        if (activeDirectionDets.length > 0 && !('_wedgeLoggedOnce' in window)) {
+          (window as any)._wedgeLoggedOnce = true;
+          console.log('%c[CanvasMapView] Drawing wedges!', 'background: orange; color: black; font-size: 16px;', {
+            count: activeDirectionDets.length,
+            first: activeDirectionDets[0]
+          });
+        }
+        
+        activeDirectionDets.forEach(det => {
             if (det.bearing !== undefined && det.bearingWidth !== undefined) {
               const hitArea = drawDirectionWedge(ctx, w, h, det.bearing, det.bearingWidth, det.colorIndex);
-              // Find associated drone for click handling
-              const associatedDrone = drones.find(d => d.id === det.droneId);
-              if (associatedDrone) {
-                newWedgeHitAreas.push({ hitArea, drone: associatedDrone });
-              }
+              // Create virtual drone for hover/click - direction level detections don't have real drones
+              const virtualDrone: Drone = {
+                id: det.droneId,
+                lat: 0,
+                lon: 0,
+                heading: det.bearing ?? 0,
+                status: 'active',
+                model: det.droneType,
+                colorIndex: det.colorIndex,
+                detectedMs: det.startedAt,
+                durationMs: det.endedAt - det.startedAt,
+                detectedBy: [det.sensorId],
+                frequency: det.frequencies[0] || 0,
+                freqHistory: det.freqHistory,
+                freqBand: det.freqBand,
+                level: det.level,
+                bearing: det.bearing,
+                bearingWidth: det.bearingWidth,
+                sensorId: det.sensorId,
+              };
+              newWedgeHitAreas.push({ hitArea, drone: virtualDrone });
             }
           });
         
@@ -139,10 +201,27 @@ export function CanvasMapView({
           // Collect hit areas for detection indicators in replay mode  
           for (const det of activeDetectionLevelEvents) {
             const sensor = SENSORS_BASE.find(s => s.id === det.sensorId);
-            const associatedDrone = drones.find(d => d.id === det.droneId);
-            if (sensor && associatedDrone) {
+            if (sensor) {
               const { x: sx, y: sy } = project(sensor.lat, sensor.lon, w, h);
-              newDetectionHitAreas.push({ x: sx, y: sy, r: 25, drone: associatedDrone });
+              // Create virtual drone for hover/click
+              const virtualDrone: Drone = {
+                id: det.droneId,
+                lat: sensor.lat,
+                lon: sensor.lon,
+                heading: 0,
+                status: 'active',
+                model: det.droneType,
+                colorIndex: det.colorIndex,
+                detectedMs: det.startedAt,
+                durationMs: det.endedAt - det.startedAt,
+                detectedBy: [det.sensorId],
+                frequency: det.frequencies[0] || 0,
+                freqHistory: det.freqHistory,
+                freqBand: det.freqBand,
+                level: det.level,
+                sensorId: det.sensorId,
+              };
+              newDetectionHitAreas.push({ x: sx, y: sy, r: 25, drone: virtualDrone });
             }
           }
         }

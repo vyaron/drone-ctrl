@@ -332,9 +332,12 @@ export function generateMockEvents(
     const eventDuration = randInt(5, 45) * 60 * 1000; // 5-45 minutes
     const eventEnd = Math.min(eventStart + eventDuration, timeRange.end);
     
-    // Generate 1-5 detections per event
-    const detectionCount = randInt(1, 5);
+    // Generate 3-5 detections per event (minimum 3 to ensure one of each level)
+    const detectionCount = randInt(3, 5);
     const detections: Detection[] = [];
+    
+    // Ensure at least one of each level type
+    const levelOrder: DetectionLevel[] = ['location', 'direction', 'detection'];
     
     for (let j = 0; j < detectionCount; j++) {
       const colorIndex = randInt(0, DRONE_COLORS.length - 1);
@@ -343,12 +346,14 @@ export function generateMockEvents(
       const detDuration = randInt(2, 20) * 60 * 1000; // 2-20 minutes
       const detEnd = Math.min(detStart + detDuration, eventEnd);
       
-      // Assign detection level with weighted probability
-      const levelRoll = Math.random();
-      const level: DetectionLevel = 
-        levelRoll < 0.5 ? 'location' :    // 50% full location
-        levelRoll < 0.8 ? 'direction' :   // 30% direction only
-        'detection';                       // 20% detection only
+      // First 3 detections get one of each level, rest are random
+      let level: DetectionLevel;
+      if (j < 3) {
+        level = levelOrder[j];
+      } else {
+        const levelRoll = Math.random();
+        level = levelRoll < 0.5 ? 'location' : levelRoll < 0.8 ? 'direction' : 'detection';
+      }
       
       // Pick a random sensor
       const sensorId = pick(SENSORS_BASE).id;

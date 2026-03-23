@@ -12,6 +12,12 @@ export function drawDetectionIndicators(
   detections: Detection[],
   onIndicatorClick?: (detection: Detection) => void
 ): { hitTest: (x: number, y: number) => Detection | null } {
+  // DEBUG
+  if (!('_detIndDrawn' in window) && detections.length > 0) {
+    (window as any)._detIndDrawn = true;
+    console.log('%c[drawDetectionIndicators] CALLED!', 'background: magenta; color: white; font-size: 20px;', { detectionsCount: detections.length, sensorIds: detections.map(d => d.sensorId) });
+  }
+  
   const sensors = tickSensors(0); // Get current sensor positions
   const hitAreas: { x: number; y: number; r: number; detection: Detection }[] = [];
   
@@ -28,7 +34,7 @@ export function drawDetectionIndicators(
     if (!sensorDetections || sensorDetections.length === 0) return;
     
     const { x: sx, y: sy } = project(s.lat, s.lon, w, h);
-    const radius = 20; // Distance from sensor center
+    const radius = 25; // Distance from sensor center - slightly larger
     const angleStep = (Math.PI * 2) / Math.max(sensorDetections.length, 1);
     
     sensorDetections.forEach((det, i) => {
@@ -36,27 +42,33 @@ export function drawDetectionIndicators(
       const indicatorX = sx + Math.cos(angle) * radius;
       const indicatorY = sy + Math.sin(angle) * radius;
       const color = DRONE_COLORS[det.colorIndex % DRONE_COLORS.length].color;
-      const indicatorR = 6;
+      const indicatorR = 10;  // Larger dot
       
       // Pulsing effect
       const phase = (ts / 1000 + i * 0.3) % 1;
-      const pulseR = indicatorR + phase * 4;
-      const pulseAlpha = Math.max(0, 0.5 - phase * 0.5);
+      const pulseR = indicatorR + phase * 8;
+      const pulseAlpha = Math.max(0, 0.7 - phase * 0.7);
       
-      // Pulse ring
+      // Pulse ring - brighter
       ctx.beginPath();
       ctx.arc(indicatorX, indicatorY, pulseR, 0, Math.PI * 2);
       ctx.strokeStyle = color + Math.round(pulseAlpha * 255).toString(16).padStart(2, '0');
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.stroke();
+      
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(indicatorX, indicatorY, indicatorR + 3, 0, Math.PI * 2);
+      ctx.fillStyle = color + '40';
+      ctx.fill();
       
       // Main indicator dot
       ctx.beginPath();
       ctx.arc(indicatorX, indicatorY, indicatorR, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
-      ctx.strokeStyle = '#ffffff40';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#ffffffaa';
+      ctx.lineWidth = 2;
       ctx.stroke();
       
       // Store hit area for click detection
