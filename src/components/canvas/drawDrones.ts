@@ -2,7 +2,7 @@ import { project, SEV, type Drone } from '../../utils/droneUtils';
 
 // Load drone SVG image
 const droneImg = new Image();
-droneImg.src = '/img/drone.svg';
+droneImg.src = 'img/drone.svg';
 let droneImgLoaded = false;
 droneImg.onload = () => { droneImgLoaded = true; };
 

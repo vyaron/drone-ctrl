@@ -82,7 +82,7 @@ export function getDroneOverlayClass(): DroneOverlayConstructor | null {
             <circle class="pulse-ring pulse-ring-${i+1}" cx="${center}" cy="${center}" r="8" 
               fill="none" stroke="${this.color}" stroke-width="1.5"/>
           `).join('')}
-          <image href="/img/drone.svg" x="${center - iconSize/2}" y="${center - iconSize/2}" 
+          <image href="img/drone.svg" x="${center - iconSize/2}" y="${center - iconSize/2}" 
             width="${iconSize}" height="${iconSize}"
             style="filter: drop-shadow(0 0 ${this.isSelected ? 8 : 4}px ${this.color});"/>
           ${this.isSelected ? `<circle cx="${center}" cy="${center}" r="${iconSize/2 + 4}" fill="none" stroke="#ffffff" stroke-width="1.5"/>` : ''}
