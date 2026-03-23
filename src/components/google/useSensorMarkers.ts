@@ -14,11 +14,14 @@ const mapSensorState = MAP_SENSORS.map(s => ({ ...s, currentLat: s.lat }));
 
 export function useSensorMarkers(
   mapInstance: google.maps.Map | null,
-  enabled: boolean
+  enabled: boolean,
+  paused: boolean = false
 ): void {
   const sensorOverlaysRef = useRef<Map<string, SensorOverlayInstance>>(new Map());
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!enabled) return;
@@ -41,7 +44,8 @@ export function useSensorMarkers(
       
       // Animation loop with own state
       const animate = (time: number) => {
-        const dt = lastTimeRef.current ? (time - lastTimeRef.current) : 16;
+        const rawDt = lastTimeRef.current ? (time - lastTimeRef.current) : 16;
+        const dt = pausedRef.current ? 0 : rawDt;
         lastTimeRef.current = time;
         
         mapSensorState.forEach(sensor => {

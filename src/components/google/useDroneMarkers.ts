@@ -33,12 +33,16 @@ export function useDroneMarkers(
   selected: Drone | null,
   onSelect: (drone: Drone | null) => void,
   filterFn: (drone: Drone) => boolean,
-  enabled: boolean
+  enabled: boolean,
+  useActualPositions: boolean = false,
+  paused: boolean = false
 ): void {
   const droneMarkersRef = useRef<Map<string, DroneMarkers>>(new Map());
   const mapPositionsRef = useRef<Map<string, MapDronePos>>(new Map());
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!enabled) return;
@@ -64,7 +68,8 @@ export function useDroneMarkers(
       }
       
       // Move drones using local positions
-      const dt = lastTs ? Math.min(timestamp - lastTs, 100) : 16;
+      const rawDt = lastTs ? Math.min(timestamp - lastTs, 100) : 16;
+      const dt = pausedRef.current ? 0 : rawDt;
       lastTs = timestamp;
       lastUpdate = timestamp;
       
@@ -136,19 +141,31 @@ export function useDroneMarkers(
       visibleDrones.forEach(drone => {
         const cfg = SEV[drone.severity];
         const isSel = selected?.id === drone.id;
-        const pos = mapPositionsRef.current.get(drone.id);
-        if (!pos) return;
+        
+        // Use actual positions or local animated positions
+        let lat: number, lon: number, heading: number;
+        if (useActualPositions) {
+          lat = drone.lat;
+          lon = drone.lon;
+          heading = drone.heading;
+        } else {
+          const pos = mapPositionsRef.current.get(drone.id);
+          if (!pos) return;
+          lat = pos.lat;
+          lon = pos.lon;
+          heading = pos.heading;
+        }
         
         const lineLength = 0.00015; // ~15m direction indicator
-        const endLat = pos.lat + Math.cos(pos.heading * Math.PI / 180) * lineLength;
-        const endLon = pos.lon + Math.sin(pos.heading * Math.PI / 180) * lineLength;
+        const endLat = lat + Math.cos(heading * Math.PI / 180) * lineLength;
+        const endLon = lon + Math.sin(heading * Math.PI / 180) * lineLength;
         
         let markers = droneMarkersRef.current.get(drone.id);
         
         if (!markers) {
           // Create new markers for this drone
           const overlay = new DroneOverlay(
-            new window.google!.maps.LatLng(pos.lat, pos.lon),
+            new window.google!.maps.LatLng(lat, lon),
             cfg.color,
             drone.severity,
             isSel,
@@ -158,7 +175,7 @@ export function useDroneMarkers(
           
           const line = new window.google!.maps.Polyline({
             path: [
-              { lat: pos.lat, lng: pos.lon },
+              { lat: lat, lng: lon },
               { lat: endLat, lng: endLon }
             ],
             map: map,
@@ -173,14 +190,14 @@ export function useDroneMarkers(
         } else {
           // Update existing markers smoothly
           markers.overlay.update(
-            new window.google!.maps.LatLng(pos.lat, pos.lon),
+            new window.google!.maps.LatLng(lat, lon),
             cfg.color,
             drone.severity,
             isSel
           );
           
           markers.line.setPath([
-            { lat: pos.lat, lng: pos.lon },
+            { lat: lat, lng: lon },
             { lat: endLat, lng: endLon }
           ]);
           markers.line.setOptions({
@@ -207,5 +224,5 @@ export function useDroneMarkers(
       });
       currentMarkers.clear();
     };
-  }, [enabled, mapInstance, selected, dronesRef, onSelect]);
+  }, [enabled, mapInstance, selected, dronesRef, onSelect, useActualPositions]);
 }

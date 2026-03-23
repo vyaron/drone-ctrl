@@ -10,6 +10,7 @@ interface CanvasMapViewProps {
   onSelect: (drone: Drone | null) => void;
   filterFn: (drone: Drone) => boolean;
   dims: { w: number; h: number };
+  paused?: boolean;
 }
 
 export function CanvasMapView({ 
@@ -17,7 +18,8 @@ export function CanvasMapView({
   selected, 
   onSelect, 
   filterFn, 
-  dims 
+  dims,
+  paused = false
 }: CanvasMapViewProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,6 +34,8 @@ export function CanvasMapView({
   const [showTrails, setShowTrails] = useState(false);
   const showTrailsRef = useRef(showTrails);
   showTrailsRef.current = showTrails;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   // Clear trails on mount
   useEffect(() => {
@@ -68,8 +72,9 @@ export function CanvasMapView({
       const selected = selectedRef.current;
       const showTrails = showTrailsRef.current;
 
-      // Calculate dt for sensors and trails
-      const dt = lastTsRef.current ? Math.min(ts - lastTsRef.current, 100) : 16;
+      // Calculate dt for sensors and trails (0 when paused)
+      const rawDt = lastTsRef.current ? Math.min(ts - lastTsRef.current, 100) : 16;
+      const dt = pausedRef.current ? 0 : rawDt;
       lastTsRef.current = ts;
 
       // Draw background, grid, etc.

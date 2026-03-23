@@ -245,6 +245,13 @@ export function tickSensors(dt: number): Sensor[] {
 
 // ====== Events Report Types ======
 
+export interface PositionSample {
+  ts: number;
+  lat: number;
+  lon: number;
+  heading: number;
+}
+
 export interface Detection {
   id: string;
   droneId: string;
@@ -255,6 +262,9 @@ export interface Detection {
   frequencies: number[];      // MHz values detected
   lat: number;
   lon: number;
+  positionHistory: PositionSample[];  // Full trajectory for replay
+  freqHistory: FreqSample[];          // Frequency samples
+  freqBand: keyof typeof FREQ_BANDS;
 }
 
 export interface Event {
@@ -302,6 +312,72 @@ export function generateMockEvents(
         frequencies.push(Math.round(rand(band.min, band.max)));
       }
       
+      // Generate position history (one sample per second)
+      const startLat = rand(LAT_MIN, LAT_MAX);
+      const startLon = rand(LON_MIN, LON_MAX);
+      const positionHistory: PositionSample[] = [];
+      const freqHistory: FreqSample[] = [];
+      
+      let curLat = startLat;
+      let curLon = startLon;
+      let targetLat = rand(LAT_MIN, LAT_MAX);
+      let targetLon = rand(LON_MIN, LON_MAX);
+      let vLat = 0;
+      let vLon = 0;
+      const spd = rand(0.4, 1.2);
+      let currentFreq = rand(band.min, band.max);
+      
+      for (let ts = detStart; ts <= detEnd; ts += 1000) {
+        // Movement simulation
+        const dLat = targetLat - curLat;
+        const dLon = targetLon - curLon;
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        
+        if (dist < 0.03) {
+          targetLat = rand(LAT_MIN, LAT_MAX);
+          targetLon = rand(LON_MIN, LON_MAX);
+        }
+        
+        const spdMult = 0.000008;
+        const accel = 0.00005;
+        vLat += (dLat / (dist || 1)) * spd * accel;
+        vLon += (dLon / (dist || 1)) * spd * accel;
+        vLat *= 0.98;
+        vLon *= 0.98;
+        
+        const curSpd = Math.sqrt(vLat * vLat + vLon * vLon);
+        const maxSpd = spd * spdMult;
+        if (curSpd > maxSpd) {
+          vLat = vLat / curSpd * maxSpd;
+          vLon = vLon / curSpd * maxSpd;
+        }
+        
+        curLat += vLat * 1000;
+        curLon += vLon * 1000;
+        curLat = Math.max(LAT_MIN, Math.min(LAT_MAX, curLat));
+        curLon = Math.max(LON_MIN, Math.min(LON_MAX, curLon));
+        
+        const heading = (Math.atan2(vLon, vLat) * 180 / Math.PI + 360) % 360;
+        
+        positionHistory.push({ ts, lat: curLat, lon: curLon, heading });
+        
+        // Freq sample every 250ms intervals
+        if ((ts - detStart) % 250 === 0) {
+          const hopChance = Math.random();
+          const bandRange = band.max - band.min;
+          if (hopChance < 0.25) {
+            currentFreq = rand(band.min, band.max);
+          } else if (hopChance < 0.5) {
+            const jump = rand(-0.25, 0.25) * bandRange;
+            currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + jump));
+          } else {
+            const drift = rand(-0.1, 0.1) * bandRange;
+            currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + drift));
+          }
+          freqHistory.push({ ts, freq: currentFreq, strength: randInt(40, 95) });
+        }
+      }
+      
       detections.push({
         id: `det-${i + 1}-${j + 1}`,
         droneId: `drone-evt-${i + 1}-${j + 1}`,
@@ -310,8 +386,11 @@ export function generateMockEvents(
         startedAt: detStart,
         endedAt: detEnd,
         frequencies: frequencies.sort((a, b) => a - b),
-        lat: rand(LAT_MIN, LAT_MAX),
-        lon: rand(LON_MIN, LON_MAX),
+        lat: startLat,
+        lon: startLon,
+        positionHistory,
+        freqHistory,
+        freqBand,
       });
     }
     
@@ -330,4 +409,86 @@ export function generateMockEvents(
   
   // Sort events by start time descending (newest first)
   return events.sort((a, b) => b.startedAt - a.startedAt);
+}
+
+// ====== Replay Utilities ======
+
+// Convert Detection to Drone at a specific timestamp for replay
+export function detectionToDrone(detection: Detection, currentTs: number): Drone | null {
+  // Check if detection is active at this timestamp
+  if (currentTs < detection.startedAt || currentTs > detection.endedAt) {
+    return null;
+  }
+  
+  // Find position at current timestamp (interpolate between samples)
+  const history = detection.positionHistory;
+  if (history.length === 0) {
+    return null;
+  }
+  
+  // Find the two samples to interpolate between
+  let pos = history[0];
+  for (let i = 0; i < history.length - 1; i++) {
+    if (history[i].ts <= currentTs && history[i + 1].ts >= currentTs) {
+      const t = (currentTs - history[i].ts) / (history[i + 1].ts - history[i].ts);
+      pos = {
+        ts: currentTs,
+        lat: history[i].lat + t * (history[i + 1].lat - history[i].lat),
+        lon: history[i].lon + t * (history[i + 1].lon - history[i].lon),
+        heading: history[i].heading, // Use start heading (could interpolate but edge cases)
+      };
+      break;
+    }
+    if (history[i].ts > currentTs) break;
+    pos = history[i];
+  }
+  
+  // Find current frequency
+  let currentFreq = detection.frequencies[0] || 2400;
+  let freqBand = detection.freqBand;
+  for (const sample of detection.freqHistory) {
+    if (sample.ts <= currentTs) {
+      currentFreq = sample.freq;
+    } else break;
+  }
+  
+  // Filter freq history up to current time
+  const freqHistory = detection.freqHistory.filter(s => s.ts <= currentTs);
+  
+  return {
+    id: detection.droneId,
+    model: detection.droneType,
+    severity: detection.severity,
+    status: 'active',
+    detectedMs: detection.startedAt,
+    durationMs: detection.endedAt - detection.startedAt,
+    lat: pos.lat,
+    lon: pos.lon,
+    targetLat: pos.lat,
+    targetLon: pos.lon,
+    vLat: 0,
+    vLon: 0,
+    heading: pos.heading,
+    altitude: randInt(20, 400),
+    speed: randInt(5, 80),
+    spd: 1,
+    threatScore: randInt(30, 99),
+    rfSig: randInt(-90, -30),
+    detectedBy: [SENSORS_BASE[0].id],
+    freqHistory,
+    currentFreq,
+    freqBand,
+  };
+}
+
+// Convert all detections in an event to drones at a specific timestamp
+export function eventToDrones(event: Event, currentTs: number): Drone[] {
+  const drones: Drone[] = [];
+  for (const detection of event.detections) {
+    const drone = detectionToDrone(detection, currentTs);
+    if (drone) {
+      drones.push(drone);
+    }
+  }
+  return drones;
 }
