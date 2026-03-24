@@ -190,16 +190,10 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
               </div>
             </>
           ) : drone.level === 'direction' ? (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "#8899aa", fontSize: 10 }}>BEARING</span>
-                <span style={{ color: "#f59e0b", fontSize: 12 }}>{drone.bearing ?? 0}°</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#8899aa", fontSize: 10 }}>WIDTH</span>
-                <span style={{ color: "#f59e0b", fontSize: 12 }}>±{(drone.bearingWidth ?? 30) / 2}°</span>
-              </div>
-            </>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8899aa", fontSize: 10 }}>BEARING</span>
+              <span style={{ color: "#f59e0b", fontSize: 12 }}>{drone.bearing ?? 0}°</span>
+            </div>
           ) : (
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#8899aa", fontSize: 10 }}>SENSOR</span>

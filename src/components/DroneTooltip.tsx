@@ -76,7 +76,7 @@ export function DroneTooltip({ drone, w, h, containerRect }: DroneTooltipProps):
       {/* Show different info based on level */}
       {drone.level === 'direction' && drone.bearing !== undefined && (
         <div style={{ color: "#8899aa", fontSize: 11, marginTop: 2 }}>
-          Bearing: {Math.round(drone.bearing)}° ± {Math.round((drone.bearingWidth || 30) / 2)}°
+          Bearing: {Math.round(drone.bearing)}°
         </div>
       )}
       
