@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Live from './pages/Live';
@@ -6,10 +6,45 @@ import Reports from './pages/Reports';
 import About from './pages/About';
 import './App.css';
 
+const ACCESS_KEY = 'demo-access';
+const ACCESS_TOKEN = 'R2-D2';
+
 function App(): ReactElement {
   const loc = useLocation();
   const path = loc.pathname.split('/')[1] || '';
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [authorized, setAuthorized] = useState(() => 
+    localStorage.getItem(ACCESS_KEY) === ACCESS_TOKEN
+  );
+
+  // Check URL param for access token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('access') === ACCESS_TOKEN) {
+      localStorage.setItem(ACCESS_KEY, ACCESS_TOKEN);
+      setAuthorized(true);
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  if (!authorized) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#000510',
+        color: '#8899aa',
+        fontFamily: "'Share Tech Mono', monospace",
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <div style={{ fontSize: 14, letterSpacing: 2 }}>ACCESS RESTRICTED</div>
+      </div>
+    );
+  }
   
   const nav = [
     { id: "", label: "HOME", icon: "⌂", iconStyle: { fontSize: 22 } },
