@@ -317,6 +317,170 @@ export interface Event {
   detections: Detection[];
 }
 
+// Generate demo event showing sensor progression
+function generateDemoEvent(
+  timeRange: { start: number; end: number }
+): Event {
+  // Demo event: unit101 detects first, then gains direction, then location
+  // Other sensors also detect the same target afterward
+  const eventStart = timeRange.start + 0.15 * (timeRange.end - timeRange.start);
+  const eventDuration = 25 * 60 * 1000; // 25 minutes
+  const eventEnd = Math.min(eventStart + eventDuration, timeRange.end);
+  
+  const colorIndex = 0; // Same drone throughout
+  const droneId = 'drone-demo-1';
+  const droneType = pick(DRONE_MODELS);
+  const freqBand: keyof typeof FREQ_BANDS = 'ISM_2_4G';
+  const band = FREQ_BANDS[freqBand];
+  const frequencies = [2412, 2437, 2462];
+  
+  const detections: Detection[] = [];
+  
+  // Helper to generate freq history
+  const genFreqHistory = (start: number, end: number) => {
+    const history: FreqSample[] = [];
+    let currentFreq = rand(band.min, band.max);
+    for (let ts = start; ts <= end; ts += 250) {
+      const hopChance = Math.random();
+      if (hopChance < 0.2) currentFreq = rand(band.min, band.max);
+      else currentFreq = Math.max(band.min, Math.min(band.max, currentFreq + rand(-20, 20)));
+      history.push({ ts, freq: currentFreq, strength: randInt(50, 90) });
+    }
+    return history;
+  };
+  
+  // 1. unit101 first detects - DETECTION only (earliest)
+  const det1Start = eventStart;
+  const det1End = det1Start + 8 * 60 * 1000; // 8 min
+  detections.push({
+    id: 'det-demo-1-1',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det1Start,
+    endedAt: det1End,
+    frequencies,
+    freqHistory: genFreqHistory(det1Start, det1End),
+    freqBand,
+    level: 'detection',
+    sensorId: 'unit101',
+  });
+  
+  // 2. unit101 gains DIRECTION (starts 3 min after detection)
+  const det2Start = det1Start + 3 * 60 * 1000;
+  const det2End = det2Start + 12 * 60 * 1000; // 12 min
+  detections.push({
+    id: 'det-demo-1-2',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det2Start,
+    endedAt: det2End,
+    frequencies,
+    freqHistory: genFreqHistory(det2Start, det2End),
+    freqBand,
+    level: 'direction',
+    sensorId: 'unit101',
+    bearing: 45,
+    bearingWidth: 25,
+  });
+  
+  // 3. unit101 gains LOCATION (starts 5 min after direction started)
+  const det3Start = det2Start + 5 * 60 * 1000;
+  const det3End = eventEnd;
+  const startLat = rand(LAT_MIN, LAT_MAX);
+  const startLon = rand(LON_MIN, LON_MAX);
+  const positionHistory: PositionSample[] = [];
+  let curLat = startLat, curLon = startLon;
+  for (let ts = det3Start; ts <= det3End; ts += 1000) {
+    curLat += rand(-0.0001, 0.0001);
+    curLon += rand(-0.0001, 0.0001);
+    curLat = Math.max(LAT_MIN, Math.min(LAT_MAX, curLat));
+    curLon = Math.max(LON_MIN, Math.min(LON_MAX, curLon));
+    const heading = randInt(0, 360);
+    positionHistory.push({ ts, lat: curLat, lon: curLon, heading });
+  }
+  detections.push({
+    id: 'det-demo-1-3',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det3Start,
+    endedAt: det3End,
+    frequencies,
+    freqHistory: genFreqHistory(det3Start, det3End),
+    freqBand,
+    level: 'location',
+    sensorId: 'unit101',
+    lat: startLat,
+    lon: startLon,
+    positionHistory,
+  });
+  
+  // 4. unit102 also detects same target (starts 2 min after unit101 detected)
+  const det4Start = det1Start + 2 * 60 * 1000;
+  const det4End = det4Start + 10 * 60 * 1000;
+  detections.push({
+    id: 'det-demo-1-4',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det4Start,
+    endedAt: det4End,
+    frequencies,
+    freqHistory: genFreqHistory(det4Start, det4End),
+    freqBand,
+    level: 'detection',
+    sensorId: 'unit102',
+  });
+  
+  // 5. unit102 gains direction
+  const det5Start = det4Start + 4 * 60 * 1000;
+  const det5End = det5Start + 8 * 60 * 1000;
+  detections.push({
+    id: 'det-demo-1-5',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det5Start,
+    endedAt: det5End,
+    frequencies,
+    freqHistory: genFreqHistory(det5Start, det5End),
+    freqBand,
+    level: 'direction',
+    sensorId: 'unit102',
+    bearing: 120,
+    bearingWidth: 30,
+  });
+  
+  // 6. unit103 detects later (starts 6 min after event start)
+  const det6Start = eventStart + 6 * 60 * 1000;
+  const det6End = det6Start + 10 * 60 * 1000;
+  detections.push({
+    id: 'det-demo-1-6',
+    droneId,
+    droneType,
+    colorIndex,
+    startedAt: det6Start,
+    endedAt: det6End,
+    frequencies,
+    freqHistory: genFreqHistory(det6Start, det6End),
+    freqBand,
+    level: 'detection',
+    sensorId: 'unit103',
+  });
+  
+  // Sort detections by start time
+  detections.sort((a, b) => a.startedAt - b.startedAt);
+  
+  return {
+    id: 'event-demo',
+    startedAt: Math.min(...detections.map(d => d.startedAt)),
+    endedAt: Math.max(...detections.map(d => d.endedAt)),
+    detections,
+  };
+}
+
 // Generate mock events for the Events Report
 export function generateMockEvents(
   timeRange: { start: number; end: number }
@@ -324,8 +488,11 @@ export function generateMockEvents(
   const events: Event[] = [];
   const duration = timeRange.end - timeRange.start;
   
-  // Generate 5-12 events spread across time range
-  const eventCount = 5 + Math.floor(Math.random() * 8);
+  // Add the demo event first (showcases sensor progression)
+  events.push(generateDemoEvent(timeRange));
+  
+  // Generate 4-11 additional events spread across time range
+  const eventCount = 4 + Math.floor(Math.random() * 8);
   
   for (let i = 0; i < eventCount; i++) {
     const eventStart = timeRange.start + (i / eventCount) * duration * 0.8 + Math.random() * duration * 0.1;
