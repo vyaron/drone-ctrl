@@ -17,12 +17,6 @@ export function drawDirectionWedge(
   colorIndex: number,
   maxRange: number = 80     // pixels
 ): WedgeHitArea {
-  // DEBUG
-  if (!('_wedgeDrawn' in window)) {
-    (window as any)._wedgeDrawn = true;
-    console.log('%c[drawDirectionWedge] CALLED!', 'background: red; color: white; font-size: 20px;', { bearing, bearingWidth, colorIndex, maxRange, centerX: 'will calc', centerY: 'will calc' });
-  }
-  
   const { x: centerX, y: centerY } = project(SITE_CENTER.lat, SITE_CENTER.lon, w, h);
   const color = DRONE_COLORS[colorIndex % DRONE_COLORS.length].color;
   

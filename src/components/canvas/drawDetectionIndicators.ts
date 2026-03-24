@@ -12,12 +12,6 @@ export function drawDetectionIndicators(
   detections: Detection[],
   onIndicatorClick?: (detection: Detection) => void
 ): { hitTest: (x: number, y: number) => Detection | null } {
-  // DEBUG
-  if (!('_detIndDrawn' in window) && detections.length > 0) {
-    (window as any)._detIndDrawn = true;
-    console.log('%c[drawDetectionIndicators] CALLED!', 'background: magenta; color: white; font-size: 20px;', { detectionsCount: detections.length, sensorIds: detections.map(d => d.sensorId) });
-  }
-  
   const sensors = tickSensors(0); // Get current sensor positions
   const hitAreas: { x: number; y: number; r: number; detection: Detection }[] = [];
   

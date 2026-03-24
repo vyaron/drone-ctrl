@@ -127,28 +127,6 @@ export function CanvasMapView({
         const activeDir = dirDets.filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
         const activeDet = detDets.filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
         
-        // Log every 500ms to see progression
-        if (!('_lastCanvasLog' in window) || now - (window as any)._lastCanvasLog > 500) {
-          (window as any)._lastCanvasLog = now;
-          
-          // Format timestamps as readable
-          const fmt = (t: number) => new Date(t).toISOString().substr(11, 12);
-          
-          console.log('%c[Replay Debug]', 'background: purple; color: white;', {
-            replayTs: fmt(replayTs),
-            replayTsRaw: replayTs,
-            activeDir: activeDir.length,
-            activeDet: activeDet.length,
-            ranges: detections.map(d => ({
-              lvl: d.level.charAt(0).toUpperCase(),
-              start: fmt(d.startedAt),
-              end: fmt(d.endedAt),
-              startRaw: d.startedAt,
-              endRaw: d.endedAt,
-              ok: replayTs >= d.startedAt && replayTs <= d.endedAt ? '✓' : '✗'
-            }))
-          });
-        }
       }
       
       // Clear hit areas each frame
@@ -161,15 +139,6 @@ export function CanvasMapView({
         const activeDirectionDets = detections
           .filter(d => d.level === 'direction')
           .filter(d => replayTs >= d.startedAt && replayTs <= d.endedAt);
-        
-        // DEBUG: Log when drawing wedges
-        if (activeDirectionDets.length > 0 && !('_wedgeLoggedOnce' in window)) {
-          (window as any)._wedgeLoggedOnce = true;
-          console.log('%c[CanvasMapView] Drawing wedges!', 'background: orange; color: black; font-size: 16px;', {
-            count: activeDirectionDets.length,
-            first: activeDirectionDets[0]
-          });
-        }
         
         activeDirectionDets.forEach(det => {
             if (det.bearing !== undefined && det.bearingWidth !== undefined) {
