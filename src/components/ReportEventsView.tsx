@@ -10,6 +10,7 @@ import { useReplayController, type PlaybackSpeed } from '../hooks/useReplayContr
 import { StaticMapView } from './StaticMapView';
 import { HistoricalTimeline } from './HistoricalTimeline';
 import { FrequencyTab } from './FrequencyTab';
+import { SensorTimelineTab } from './SensorTimelineTab';
 
 interface ReportEventsViewProps {
   timeRange: { start: number; end: number };
@@ -17,7 +18,7 @@ interface ReportEventsViewProps {
 
 type SortColumn = 'id' | 'startedAt' | 'endedAt' | 'duration' | 'threats';
 type SortDir = 'asc' | 'desc';
-type ViewTab = 'timeline' | 'tactical' | 'map' | 'frequency';
+type ViewTab = 'timeline' | 'tactical' | 'map' | 'frequency' | 'sensors';
 
 // Format timestamp to readable string
 function formatDateTime(ts: number): string {
@@ -189,6 +190,7 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
     { id: 'tactical', icon: '◈', label: 'TACTICAL' },
     { id: 'map', icon: '🛰️', label: 'MAP' },
     { id: 'frequency', icon: '∿', label: 'FREQUENCY' },
+    { id: 'sensors', icon: '📡', label: 'SENSORS' },
   ];
 
   return (
@@ -448,6 +450,11 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
               />
             ) : viewTab === 'frequency' ? (
               <FrequencyTab
+                event={selectedEvent}
+                currentTs={replay.currentTs}
+              />
+            ) : viewTab === 'sensors' ? (
+              <SensorTimelineTab
                 event={selectedEvent}
                 currentTs={replay.currentTs}
               />
