@@ -11,6 +11,7 @@ interface StaticMapViewProps {
   paused?: boolean;
   detections?: Detection[];  // For rendering direction/detection-level visualizations
   currentTs?: number;        // For filtering active detections
+  showHeadingIndicator?: boolean;
 }
 
 // Wrapper that converts static drones array to ref for existing map components
@@ -21,7 +22,8 @@ export function StaticMapView({
   mode = 'canvas',
   paused = false,
   detections = [],
-  currentTs = Date.now()
+  currentTs = Date.now(),
+  showHeadingIndicator = true
 }: StaticMapViewProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const dronesRef = useRef<Drone[]>(drones);
@@ -58,6 +60,7 @@ export function StaticMapView({
           paused={paused}
           detectionsRef={detectionsRef}
           currentTs={currentTs}
+          showHeadingIndicator={showHeadingIndicator}
         />
       ) : (
         <GoogleMapView
@@ -66,6 +69,7 @@ export function StaticMapView({
           onSelect={onSelect}
           filterFn={filterFn}
           paused={paused}
+          showHeadingIndicator={showHeadingIndicator}
         />
       )}
     </div>

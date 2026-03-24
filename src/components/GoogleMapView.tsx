@@ -24,6 +24,7 @@ interface GoogleMapViewProps {
   filterFn: (drone: Drone) => boolean;
   useActualPositions?: boolean;
   paused?: boolean;
+  showHeadingIndicator?: boolean;
 }
 
 export function GoogleMapView({ 
@@ -33,7 +34,8 @@ export function GoogleMapView({
   onSelect, 
   filterFn,
   useActualPositions = false,
-  paused = false
+  paused = false,
+  showHeadingIndicator = true
 }: GoogleMapViewProps): ReactElement {
   const googleMapRef = useRef<HTMLDivElement>(null);
   const googleMapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -161,7 +163,8 @@ export function GoogleMapView({
     filterFn,
     true,
     useActualPositions,
-    paused
+    paused,
+    showHeadingIndicator
   );
 
   useSensorMarkers(googleMapInstanceRef.current, true, paused);

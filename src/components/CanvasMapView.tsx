@@ -25,6 +25,7 @@ interface CanvasMapViewProps {
   paused?: boolean;
   detectionsRef?: MutableRefObject<Detection[]>;
   currentTs?: number;
+  showHeadingIndicator?: boolean;
 }
 
 export function CanvasMapView({ 
@@ -35,7 +36,8 @@ export function CanvasMapView({
   dims,
   paused = false,
   detectionsRef,
-  currentTs
+  currentTs,
+  showHeadingIndicator = true
 }: CanvasMapViewProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

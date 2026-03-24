@@ -35,7 +35,8 @@ export function useDroneMarkers(
   filterFn: (drone: Drone) => boolean,
   enabled: boolean,
   useActualPositions: boolean = false,
-  paused: boolean = false
+  paused: boolean = false,
+  showHeadingIndicator: boolean = true
 ): void {
   const droneMarkersRef = useRef<Map<string, DroneMarkers>>(new Map());
   const mapPositionsRef = useRef<Map<string, MapDronePos>>(new Map());
@@ -43,6 +44,8 @@ export function useDroneMarkers(
   filterFnRef.current = filterFn;
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const showHeadingIndicatorRef = useRef(showHeadingIndicator);
+  showHeadingIndicatorRef.current = showHeadingIndicator;
 
   useEffect(() => {
     if (!enabled) return;
@@ -179,7 +182,7 @@ export function useDroneMarkers(
               { lat: lat, lng: lon },
               { lat: endLat, lng: endLon }
             ],
-            map: map,
+            map: showHeadingIndicatorRef.current ? map : null,
             strokeColor: cfg.color,
             strokeOpacity: 0.8,
             strokeWeight: 2,
@@ -197,14 +200,22 @@ export function useDroneMarkers(
             isSel
           );
           
-          markers.line.setPath([
-            { lat: lat, lng: lon },
-            { lat: endLat, lng: endLon }
-          ]);
-          markers.line.setOptions({
-            strokeColor: cfg.color,
-            zIndex: isSel ? 99 : 49,
-          });
+          // Show/hide direction indicator based on flag
+          const lineMap = showHeadingIndicatorRef.current ? map : null;
+          if (markers.line.getMap() !== lineMap) {
+            markers.line.setMap(lineMap);
+          }
+          
+          if (showHeadingIndicatorRef.current) {
+            markers.line.setPath([
+              { lat: lat, lng: lon },
+              { lat: endLat, lng: endLon }
+            ]);
+            markers.line.setOptions({
+              strokeColor: cfg.color,
+              zIndex: isSel ? 99 : 49,
+            });
+          }
         }
       });
       

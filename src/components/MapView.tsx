@@ -9,9 +9,10 @@ interface MapViewProps {
   onSelect: (drone: Drone | null) => void;
   filterFn: (drone: Drone) => boolean;
   mode?: 'canvas' | 'google';
+  showHeadingIndicator?: boolean;
 }
 
-function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }: MapViewProps): ReactElement {
+function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas', showHeadingIndicator = false }: MapViewProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ w: 800, h: 500 });
 
@@ -34,6 +35,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }: M
           onSelect={onSelect}
           filterFn={filterFn}
           dims={dims}
+          showHeadingIndicator={showHeadingIndicator}
         />
       ) : (
         <GoogleMapView
@@ -41,6 +43,7 @@ function MapView({ dronesRef, selected, onSelect, filterFn, mode = 'canvas' }: M
           selected={selected}
           onSelect={onSelect}
           filterFn={filterFn}
+          showHeadingIndicator={showHeadingIndicator}
         />
       )}
     </div>
