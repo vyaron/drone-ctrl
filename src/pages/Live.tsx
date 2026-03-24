@@ -6,6 +6,7 @@ import DetailPanel from '../components/DetailPanel';
 import { 
   WINDOW_SEC, 
   DRONE_MODELS, 
+  SENSORS_BASE,
   spawnDrone, 
   formatTime, 
   pick, 
@@ -73,19 +74,79 @@ function Live(): ReactElement {
         vLon: (dLon / (dist || 1)) * initSpd,
       };
     };
-    // Spawn initial drones
-    const initial = Array.from({ length: 5 }, () => addInitVelocity(spawnDrone(t - randInt(5000, 80000))));
+    // Spawn initial drones with a mix of detection levels for demo purposes
+    // 2 location, 2 direction, 3 detection-level drones (1-3 concurrent per sensor)
+    const initial: Drone[] = [];
+    
+    // Spawn 2 location-level drones
+    for (let i = 0; i < 2; i++) {
+      const d = spawnDrone(t - randInt(5000, 80000));
+      d.level = 'location';
+      initial.push(addInitVelocity(d));
+    }
+    
+    // Spawn 2 direction-level drones with different bearings
+    for (let i = 0; i < 2; i++) {
+      const d = spawnDrone(t - randInt(5000, 80000));
+      d.level = 'direction';
+      d.bearing = randInt(0, 360);
+      d.bearingWidth = randInt(15, 45);
+      initial.push(addInitVelocity(d));
+    }
+    
+    // Spawn 3 detection-level drones - distribute across sensors for demo
+    // This ensures some sensors have 1-3 concurrent threats
+    const sensorIds = SENSORS_BASE.map(s => s.id);
+    const detSensorAssignments = [sensorIds[0], sensorIds[0], sensorIds[1]]; // 2 on first sensor, 1 on second
+    for (let i = 0; i < 3; i++) {
+      const d = spawnDrone(t - randInt(5000, 80000));
+      d.level = 'detection';
+      d.sensorId = detSensorAssignments[i];
+      initial.push(addInitVelocity(d));
+    }
+    
     dronesRef.current = initial;
     setDrones([...dronesRef.current]);
   }, []);
 
-  // Spawn new drones periodically
+  // Spawn new drones periodically - maintain mix of detection levels
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => {
-      const active = dronesRef.current.filter(d => d.status === "active").length;
-      if (active >= 8) return;
+      const activeDrones = dronesRef.current.filter(d => d.status === "active");
+      if (activeDrones.length >= 8) return;
+      
+      // Count current distribution of detection levels
+      const levelCounts = {
+        location: activeDrones.filter(d => d.level === 'location').length,
+        direction: activeDrones.filter(d => d.level === 'direction').length,
+        detection: activeDrones.filter(d => d.level === 'detection').length,
+      };
+      
       const d = spawnDrone(Date.now());
+      
+      // Prioritize spawning levels with fewer drones (min 2 direction, 2 detection for demo)
+      if (levelCounts.direction < 2) {
+        d.level = 'direction';
+        d.bearing = randInt(0, 360);
+        d.bearingWidth = randInt(15, 45);
+      } else if (levelCounts.detection < 2) {
+        d.level = 'detection';
+        // Find sensor with fewest threats
+        const sensorThreatCount = new Map<string, number>();
+        activeDrones.filter(dr => dr.level === 'detection').forEach(dr => {
+          if (dr.sensorId) {
+            sensorThreatCount.set(dr.sensorId, (sensorThreatCount.get(dr.sensorId) || 0) + 1);
+          }
+        });
+        // Pick sensor with least threats (but not more than 3)
+        const validSensors = SENSORS_BASE.filter(s => (sensorThreatCount.get(s.id) || 0) < 3);
+        if (validSensors.length > 0) {
+          d.sensorId = pick(validSensors).id;
+        }
+      }
+      // Otherwise let spawnDrone's random level assignment stand
+      
       // Give initial velocity toward target so drones don't start stationary
       const dLat = d.targetLat - d.lat;
       const dLon = d.targetLon - d.lon;
@@ -171,6 +232,100 @@ function Live(): ReactElement {
         }
       });
     }, 250);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Dynamic bearing changes for direction-level drones (every 8-15 seconds)
+  useEffect(() => {
+    if (!running) return;
+    
+    // Track next change time per drone
+    const nextBearingChange = new Map<string, number>();
+    
+    const id = setInterval(() => {
+      const now = Date.now();
+      dronesRef.current.forEach(d => {
+        if (d.status !== "active" || d.level !== 'direction') return;
+        
+        // Initialize next change time if not set
+        if (!nextBearingChange.has(d.id)) {
+          nextBearingChange.set(d.id, now + randInt(8000, 15000));
+        }
+        
+        // Check if it's time to change bearing
+        const nextChange = nextBearingChange.get(d.id)!;
+        if (now >= nextChange) {
+          // Change bearing smoothly - rotate by 20-60 degrees
+          const rotation = randInt(20, 60) * (Math.random() > 0.5 ? 1 : -1);
+          d.bearing = ((d.bearing || 0) + rotation + 360) % 360;
+          // Slightly vary bearing width
+          d.bearingWidth = randInt(15, 45);
+          // Set next change time (8-15 seconds)
+          nextBearingChange.set(d.id, now + randInt(8000, 15000));
+        }
+      });
+    }, 500);
+    
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Dynamic sensor changes for detection-level drones (every 8-15 seconds)
+  // Also ensures 1-3 concurrent threats per sensor for demo purposes
+  useEffect(() => {
+    if (!running) return;
+    
+    // Track next change time per drone
+    const nextSensorChange = new Map<string, number>();
+    
+    const id = setInterval(() => {
+      const now = Date.now();
+      const activeDrones = dronesRef.current.filter(d => d.status === "active" && d.level === 'detection');
+      
+      // Get current sensor distribution
+      const sensorThreatCount = new Map<string, number>();
+      activeDrones.forEach(d => {
+        if (d.sensorId) {
+          sensorThreatCount.set(d.sensorId, (sensorThreatCount.get(d.sensorId) || 0) + 1);
+        }
+      });
+      
+      activeDrones.forEach(d => {
+        // Initialize next change time if not set
+        if (!nextSensorChange.has(d.id)) {
+          nextSensorChange.set(d.id, now + randInt(8000, 15000));
+        }
+        
+        // Check if it's time to change sensor
+        const nextChange = nextSensorChange.get(d.id)!;
+        if (now >= nextChange) {
+          // Find sensors with less than 3 threats (to ensure 1-3 concurrent threats)
+          const availableSensors = SENSORS_BASE.filter(s => {
+            const count = sensorThreatCount.get(s.id) || 0;
+            // Prefer sensors with 0-2 threats, but still allow current sensor to be excluded
+            return s.id !== d.sensorId && count < 3;
+          });
+          
+          if (availableSensors.length > 0) {
+            // Update threat count for old sensor
+            if (d.sensorId) {
+              const oldCount = sensorThreatCount.get(d.sensorId) || 1;
+              sensorThreatCount.set(d.sensorId, oldCount - 1);
+            }
+            
+            // Pick new sensor
+            const newSensor = pick(availableSensors);
+            d.sensorId = newSensor.id;
+            
+            // Update threat count for new sensor
+            sensorThreatCount.set(newSensor.id, (sensorThreatCount.get(newSensor.id) || 0) + 1);
+          }
+          
+          // Set next change time (8-15 seconds)
+          nextSensorChange.set(d.id, now + randInt(8000, 15000));
+        }
+      });
+    }, 500);
+    
     return () => clearInterval(id);
   }, [running]);
 

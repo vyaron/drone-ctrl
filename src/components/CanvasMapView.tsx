@@ -14,6 +14,8 @@ interface DetectionHitInfo {
   y: number;
   r: number;
   drone: Drone;
+  indicatorX: number;  // Actual screen position of indicator
+  indicatorY: number;
 }
 
 interface CanvasMapViewProps {
@@ -42,11 +44,13 @@ export function CanvasMapView({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<Drone | null>(null);
+  const hoverPosRef = useRef<{ x: number; y: number } | null>(null);
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [hover, setHover] = useState<Drone | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const lastTsRef = useRef<number | null>(null);
   const trailsRef = useRef<Map<string, TrailPoint[]>>(new Map());
   const [showTrails, setShowTrails] = useState(false);
@@ -200,16 +204,33 @@ export function CanvasMapView({
         );
         if (activeDetectionLevelEvents.length > 0) {
           drawDetectionIndicators(ctx, w, h, ts, activeDetectionLevelEvents);
-          // Collect hit areas for detection indicators in replay mode  
-          for (const det of activeDetectionLevelEvents) {
-            const sensor = SENSORS_BASE.find(s => s.id === det.sensorId);
-            if (sensor) {
-              const { x: sx, y: sy } = project(sensor.lat, sensor.lon, w, h);
+          
+          // Calculate actual indicator positions for replay mode (replicate logic from drawDetectionIndicators)
+          const detectionBySensor = new Map<string, Detection[]>();
+          activeDetectionLevelEvents.forEach(d => {
+            const list = detectionBySensor.get(d.sensorId) || [];
+            list.push(d);
+            detectionBySensor.set(d.sensorId, list);
+          });
+          
+          SENSORS_BASE.forEach(s => {
+            const sensorDetections = detectionBySensor.get(s.id);
+            if (!sensorDetections || sensorDetections.length === 0) return;
+            
+            const { x: sx, y: sy } = project(s.lat, s.lon, w, h);
+            const radius = 25;
+            const angleStep = (Math.PI * 2) / Math.max(sensorDetections.length, 1);
+            
+            sensorDetections.forEach((det, i) => {
+              const angle = i * angleStep - Math.PI / 2;
+              const indicatorX = sx + Math.cos(angle) * radius;
+              const indicatorY = sy + Math.sin(angle) * radius;
+              
               // Create virtual drone for hover/click
               const virtualDrone: Drone = {
                 id: det.droneId,
-                lat: sensor.lat,
-                lon: sensor.lon,
+                lat: s.lat,
+                lon: s.lon,
                 heading: 0,
                 status: 'active',
                 model: det.droneType,
@@ -223,9 +244,9 @@ export function CanvasMapView({
                 level: det.level,
                 sensorId: det.sensorId,
               };
-              newDetectionHitAreas.push({ x: sx, y: sy, r: 25, drone: virtualDrone });
-            }
-          }
+              newDetectionHitAreas.push({ x: indicatorX, y: indicatorY, r: 14, drone: virtualDrone, indicatorX, indicatorY });
+            });
+          });
         }
       }
       
@@ -258,21 +279,34 @@ export function CanvasMapView({
       }));
       
       if (detectionData.length > 0) {
-        const result = drawDetectionIndicators(ctx, w, h, ts, detectionData);
-        // Store hit areas with drone references
-        for (const drone of liveDetectionDrones) {
-          const det = detectionData.find(d => d.id === drone.id);
-          if (det) {
-            // Get the hit areas from the result
-            // We need to check each detection indicator position
-            const { x: sx, y: sy } = project(
-              SENSORS_BASE.find(s => s.id === det.sensorId)?.lat ?? 0,
-              SENSORS_BASE.find(s => s.id === det.sensorId)?.lon ?? 0,
-              w, h
-            );
-            newDetectionHitAreas.push({ x: sx, y: sy, r: 25, drone });
-          }
-        }
+        drawDetectionIndicators(ctx, w, h, ts, detectionData);
+        
+        // Calculate actual indicator positions (replicate logic from drawDetectionIndicators)
+        const detectionBySensor = new Map<string, typeof detectionData>();
+        detectionData.forEach(d => {
+          const list = detectionBySensor.get(d.sensorId) || [];
+          list.push(d);
+          detectionBySensor.set(d.sensorId, list);
+        });
+        
+        SENSORS_BASE.forEach(s => {
+          const sensorDetections = detectionBySensor.get(s.id);
+          if (!sensorDetections || sensorDetections.length === 0) return;
+          
+          const { x: sx, y: sy } = project(s.lat, s.lon, w, h);
+          const radius = 25;
+          const angleStep = (Math.PI * 2) / Math.max(sensorDetections.length, 1);
+          
+          sensorDetections.forEach((det, i) => {
+            const angle = i * angleStep - Math.PI / 2;
+            const indicatorX = sx + Math.cos(angle) * radius;
+            const indicatorY = sy + Math.sin(angle) * radius;
+            const drone = liveDetectionDrones.find(d => d.id === det.id);
+            if (drone) {
+              newDetectionHitAreas.push({ x: indicatorX, y: indicatorY, r: 14, drone, indicatorX, indicatorY });
+            }
+          });
+        });
       }
       
       // Store hit areas in refs for click handling
@@ -325,6 +359,8 @@ export function CanvasMapView({
     // 2. Check detection indicator circles
     for (const hit of detectionHitAreasRef.current) {
       if (Math.hypot(mx - hit.x, my - hit.y) < hit.r) {
+        // Store indicator position for tooltip
+        hoverPosRef.current = { x: hit.indicatorX, y: hit.indicatorY };
         return hit.drone;
       }
     }
@@ -353,7 +389,13 @@ export function CanvasMapView({
       <canvas 
         ref={canvasRef}
         onClick={e => { const d = hitTest(e); onSelect(d || null); }}
-        onMouseMove={e => { const d = hitTest(e); hoverRef.current = d || null; setHover(d || null); }}
+        onMouseMove={e => { 
+          hoverPosRef.current = null; // Reset before hitTest
+          const d = hitTest(e); 
+          hoverRef.current = d || null; 
+          setHover(d || null); 
+          setHoverPos(hoverPosRef.current);
+        }}
         style={{ 
           display: "block", 
           width: "100%", 
@@ -367,7 +409,8 @@ export function CanvasMapView({
           drone={hover} 
           w={dims.w} 
           h={dims.h} 
-          containerRect={containerRef.current?.getBoundingClientRect() || null} 
+          containerRect={containerRef.current?.getBoundingClientRect() || null}
+          screenPos={hoverPos}
         />
       )}
     </div>

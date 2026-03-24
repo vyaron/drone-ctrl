@@ -6,22 +6,27 @@ interface DroneTooltipProps {
   w: number;
   h: number;
   containerRect: DOMRect | null;
+  screenPos?: { x: number; y: number } | null;  // For detection-level, actual indicator position
 }
 
-export function DroneTooltip({ drone, w, h, containerRect }: DroneTooltipProps): ReactElement {
+export function DroneTooltip({ drone, w, h, containerRect, screenPos }: DroneTooltipProps): ReactElement {
   const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
   
   // Position tooltip based on detection level
   let tooltipX: number;
   let tooltipY: number;
   
-  if (drone.level === 'direction') {
+  if (drone.level === 'detection' && screenPos) {
+    // Detection level: use actual indicator screen position
+    tooltipX = screenPos.x;
+    tooltipY = screenPos.y;
+  } else if (drone.level === 'direction') {
     // Direction level: position near site center (where wedge originates)
     const { x, y } = project(SITE_CENTER.lat, SITE_CENTER.lon, w, h);
     tooltipX = x;
     tooltipY = y;
   } else if (drone.level === 'detection') {
-    // Detection level: position near sensor
+    // Detection level fallback: position near sensor
     const { x, y } = project(drone.lat, drone.lon, w, h);
     tooltipX = x;
     tooltipY = y;
