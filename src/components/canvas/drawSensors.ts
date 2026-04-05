@@ -2,9 +2,9 @@ import { project, tickSensors, type Drone } from '../../utils/droneUtils';
 
 // Preload sensor icons
 const staticSensorIcon = new Image();
-staticSensorIcon.src = '/img/sensor1.svg';
+staticSensorIcon.src = 'img/sensor1.svg';
 const movingSensorIcon = new Image();
-movingSensorIcon.src = '/img/sensor.svg';
+movingSensorIcon.src = 'img/sensor.svg';
 
 export function drawSensors(
   ctx: CanvasRenderingContext2D,
