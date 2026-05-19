@@ -58,7 +58,7 @@ export function DroneFootageSplitView({
   drone,
   pathPoints,
   onClose,
-  videoSrc = '/footage/101.mp4',
+  videoSrc = 'footage/101.mp4',
 }: DroneFootageSplitViewProps): ReactElement {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoDurationSec, setVideoDurationSec] = useState(0);
