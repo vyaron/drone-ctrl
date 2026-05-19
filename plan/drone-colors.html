@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Drone Threat Color Scheme</title>
+<style>
+  body {
+    background: #0a0e14;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+    color: #ccd6f6;
+    padding: 40px;
+    margin: 0;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: #8899aa;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #556677;
+    text-transform: uppercase;
+    margin: 32px 0 12px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    max-width: 860px;
+  }
+  .card {
+    border-radius: 10px;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .swatch {
+    width: 100%;
+    height: 48px;
+    border-radius: 6px;
+  }
+  .name {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .hex {
+    font-size: 13px;
+    font-family: monospace;
+    opacity: 0.85;
+  }
+  .idx {
+    font-size: 10px;
+    opacity: 0.45;
+    letter-spacing: 1px;
+  }
+
+  /* Detection level row */
+  .levels {
+    display: flex;
+    gap: 12px;
+    max-width: 520px;
+    margin-top: 4px;
+  }
+  .level-card {
+    flex: 1;
+    border-radius: 10px;
+    padding: 16px 14px;
+  }
+  .level-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .level-type {
+    font-size: 10px;
+    opacity: 0.55;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .level-hex {
+    font-family: monospace;
+    font-size: 12px;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+
+<h1>Drone Threat Color Scheme</h1>
+
+<div class="section-title">Drone Colors — DRONE_COLORS[0–9]</div>
+<div class="grid">
+
+  <div class="card" style="background:rgba(0,212,255,0.12); border:1px solid rgba(0,212,255,0.3)">
+    <div class="swatch" style="background:#00d4ff; box-shadow:0 0 16px rgba(0,212,255,0.6)"></div>
+    <div class="name" style="color:#00d4ff">Cyan</div>
+    <div class="hex">#00d4ff</div>
+    <div class="idx">index 0</div>
+  </div>
+
+  <div class="card" style="background:rgba(255,149,0,0.10); border:1px solid rgba(255,149,0,0.3)">
+    <div class="swatch" style="background:#ff9500; box-shadow:0 0 16px rgba(255,149,0,0.5)"></div>
+    <div class="name" style="color:#ff9500">Orange</div>
+    <div class="hex">#ff9500</div>
+    <div class="idx">index 1</div>
+  </div>
+
+  <div class="card" style="background:rgba(175,82,222,0.10); border:1px solid rgba(175,82,222,0.3)">
+    <div class="swatch" style="background:#af52de; box-shadow:0 0 16px rgba(175,82,222,0.5)"></div>
+    <div class="name" style="color:#af52de">Purple</div>
+    <div class="hex">#af52de</div>
+    <div class="idx">index 2</div>
+  </div>
+
+  <div class="card" style="background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.3)">
+    <div class="swatch" style="background:#007aff; box-shadow:0 0 16px rgba(0,122,255,0.5)"></div>
+    <div class="name" style="color:#007aff">Blue</div>
+    <div class="hex">#007aff</div>
+    <div class="idx">index 3</div>
+  </div>
+
+  <div class="card" style="background:rgba(255,214,10,0.08); border:1px solid rgba(255,214,10,0.3)">
+    <div class="swatch" style="background:#ffd60a; box-shadow:0 0 16px rgba(255,214,10,0.5)"></div>
+    <div class="name" style="color:#ffd60a">Yellow</div>
+    <div class="hex">#ffd60a</div>
+    <div class="idx">index 4</div>
+  </div>
+
+  <div class="card" style="background:rgba(50,173,230,0.10); border:1px solid rgba(50,173,230,0.3)">
+    <div class="swatch" style="background:#32ade6; box-shadow:0 0 16px rgba(50,173,230,0.5)"></div>
+    <div class="name" style="color:#32ade6">Teal</div>
+    <div class="hex">#32ade6</div>
+    <div class="idx">index 5</div>
+  </div>
+
+  <div class="card" style="background:rgba(255,140,0,0.10); border:1px solid rgba(255,140,0,0.3)">
+    <div class="swatch" style="background:#ff8c00; box-shadow:0 0 16px rgba(255,140,0,0.5)"></div>
+    <div class="name" style="color:#ff8c00">Dark Orange</div>
+    <div class="hex">#ff8c00</div>
+    <div class="idx">index 6</div>
+  </div>
+
+  <div class="card" style="background:rgba(191,90,242,0.10); border:1px solid rgba(191,90,242,0.3)">
+    <div class="swatch" style="background:#bf5af2; box-shadow:0 0 16px rgba(191,90,242,0.5)"></div>
+    <div class="name" style="color:#bf5af2">Magenta</div>
+    <div class="hex">#bf5af2</div>
+    <div class="idx">index 7</div>
+  </div>
+
+  <div class="card" style="background:rgba(100,210,255,0.10); border:1px solid rgba(100,210,255,0.3)">
+    <div class="swatch" style="background:#64d2ff; box-shadow:0 0 16px rgba(100,210,255,0.5)"></div>
+    <div class="name" style="color:#64d2ff">Light Blue</div>
+    <div class="hex">#64d2ff</div>
+    <div class="idx">index 8</div>
+  </div>
+
+  <div class="card" style="background:rgba(255,204,0,0.10); border:1px solid rgba(255,204,0,0.3)">
+    <div class="swatch" style="background:#ffcc00; box-shadow:0 0 16px rgba(255,204,0,0.5)"></div>
+    <div class="name" style="color:#ffcc00">Gold</div>
+    <div class="hex">#ffcc00</div>
+    <div class="idx">index 9</div>
+  </div>
+
+</div>
+
+<div class="section-title">Detection Levels — LEVEL_CONFIG</div>
+<div class="levels">
+
+  <div class="level-card" style="background:rgba(136,153,170,0.3); border:1px solid rgba(136,153,170,0.4)">
+    <div class="level-label" style="color:#8899aa">DETECT</div>
+    <div class="level-type">detection</div>
+    <div class="level-hex" style="color:#8899aa">#8899aa</div>
+  </div>
+
+  <div class="level-card" style="background:rgba(255,214,10,0.3); border:1px solid rgba(255,214,10,0.4)">
+    <div class="level-label" style="color:#ffd60a">DIR</div>
+    <div class="level-type">direction</div>
+    <div class="level-hex" style="color:#ffd60a">#ffd60a</div>
+  </div>
+
+  <div class="level-card" style="background:rgba(0,212,255,0.4); border:1px solid rgba(0,212,255,0.5)">
+    <div class="level-label" style="color:#00d4ff">GEO</div>
+    <div class="level-type">location</div>
+    <div class="level-hex" style="color:#00d4ff">#00d4ff</div>
+  </div>
+
+</div>
+
+</body>
+</html>

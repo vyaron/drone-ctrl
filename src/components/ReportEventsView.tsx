@@ -7,10 +7,13 @@ import {
   type Drone,
 } from '../utils/droneUtils';
 import { useReplayController, type PlaybackSpeed } from '../hooks/useReplayController';
+import { useMissionNarration } from '../hooks/useMissionNarration';
 import { StaticMapView } from './StaticMapView';
 import { HistoricalTimeline } from './HistoricalTimeline';
 import { FrequencyTab } from './FrequencyTab';
 import { SensorTimelineTab } from './SensorTimelineTab';
+import { MissionNarrationPanel } from './MissionNarrationPanel';
+import { deriveMissionMoments } from '../utils/missionReplay';
 
 interface ReportEventsViewProps {
   timeRange: { start: number; end: number };
@@ -18,7 +21,7 @@ interface ReportEventsViewProps {
 
 type SortColumn = 'id' | 'startedAt' | 'endedAt' | 'duration' | 'threats';
 type SortDir = 'asc' | 'desc';
-type ViewTab = 'timeline' | 'tactical' | 'map' | 'frequency' | 'sensors';
+type ViewTab = 'timeline' | 'tactical' | 'map' | 'frequency' | 'sensors' | 'mission';
 
 // Format timestamp to readable string
 function formatDateTime(ts: number): string {
@@ -54,6 +57,7 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
   const [sortColumn, setSortColumn] = useState<SortColumn>('startedAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [viewTab, setViewTab] = useState<ViewTab>('tactical');
+  const [narrationEnabled, setNarrationEnabled] = useState(true);
 
   // Generate mock events
   const events = useMemo(
@@ -70,6 +74,58 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
 
   // Replay controller
   const replay = useReplayController(selectedEvent);
+  const missionMoments = useMemo(() => deriveMissionMoments(selectedEvent), [selectedEvent]);
+  const { activeMoment, recentMoments } = useMissionNarration({
+    eventId: selectedEvent?.id ?? null,
+    moments: missionMoments,
+    currentTs: replay.currentTs,
+    isPlaying: replay.isPlaying,
+    enabled: narrationEnabled,
+  });
+
+  const currentMomentIndex = missionMoments.findIndex(moment => moment.id === activeMoment?.id);
+
+  const jumpToMoment = (direction: -1 | 1) => {
+    if (missionMoments.length === 0) {
+      return;
+    }
+
+    const referenceIndex = currentMomentIndex >= 0
+      ? currentMomentIndex
+      : missionMoments.findIndex(moment => moment.ts >= replay.currentTs);
+
+    const fallbackIndex = direction > 0 ? 0 : missionMoments.length - 1;
+    const nextIndex = referenceIndex >= 0
+      ? Math.max(0, Math.min(missionMoments.length - 1, referenceIndex + direction))
+      : fallbackIndex;
+
+    replay.seekToTime(missionMoments[nextIndex].ts);
+  };
+
+  const restartMission = () => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    setSelectedDrone(null);
+    replay.seekToTime(selectedEvent.startedAt);
+    replay.play();
+  };
+
+  useEffect(() => {
+    if (viewTab !== 'mission') {
+      return;
+    }
+
+    if (!activeMoment?.relatedDroneId) {
+      return;
+    }
+
+    const nextDrone = replay.drones.find(drone => drone.id === activeMoment.relatedDroneId) ?? null;
+    if (nextDrone) {
+      setSelectedDrone(nextDrone);
+    }
+  }, [activeMoment, replay.drones, viewTab]);
 
   // Sort events
   const sortedEvents = useMemo(() => {
@@ -191,6 +247,7 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
     { id: 'map', icon: '🛰️', label: 'MAP' },
     { id: 'frequency', icon: '∿', label: 'FREQUENCY' },
     { id: 'sensors', icon: '📡', label: 'SENSORS' },
+    { id: 'mission', icon: '◉', label: 'MISSION' },
   ];
 
   return (
@@ -437,6 +494,15 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
           </span>
         </div>
 
+        {selectedEvent && viewTab === 'mission' && (
+          <MissionNarrationPanel
+            activeMoment={activeMoment}
+            recentMoments={recentMoments}
+            narrationEnabled={narrationEnabled}
+            onToggleNarration={() => setNarrationEnabled(enabled => !enabled)}
+          />
+        )}
+
         {/* View Content */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {selectedEvent ? (
@@ -447,6 +513,8 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
                 currentTs={replay.currentTs}
                 selected={selectedDrone}
                 onSelect={setSelectedDrone}
+                missionMoments={missionMoments}
+                activeMomentId={activeMoment?.id ?? null}
               />
             ) : viewTab === 'frequency' ? (
               <FrequencyTab
@@ -463,7 +531,7 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
                 drones={replay.drones}
                 selected={selectedDrone}
                 onSelect={setSelectedDrone}
-                mode={viewTab === 'tactical' ? 'canvas' : 'google'}
+                mode={viewTab === 'map' ? 'google' : 'canvas'}
                 paused={!replay.isPlaying}
                 detections={selectedEvent?.detections}
                 currentTs={replay.currentTs}
@@ -507,6 +575,63 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
               >
                 {replay.isPlaying ? '⏸' : '▶'}
               </button>
+
+              {viewTab === 'mission' && (
+                <>
+                  <button
+                    onClick={restartMission}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 4,
+                      background: 'transparent',
+                      border: '1px solid rgba(0,212,255,0.2)',
+                      color: '#7ecfff',
+                      cursor: 'pointer',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    RESTART
+                  </button>
+
+                  <button
+                    onClick={() => jumpToMoment(-1)}
+                    disabled={missionMoments.length === 0}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 4,
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#aab7c4',
+                      cursor: missionMoments.length > 0 ? 'pointer' : 'not-allowed',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    PREV MOMENT
+                  </button>
+
+                  <button
+                    onClick={() => jumpToMoment(1)}
+                    disabled={missionMoments.length === 0}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 4,
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#aab7c4',
+                      cursor: missionMoments.length > 0 ? 'pointer' : 'not-allowed',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    NEXT MOMENT
+                  </button>
+                </>
+              )}
               
               {/* Speed control */}
               <div style={{ display: 'flex', gap: 4 }}>
@@ -537,6 +662,12 @@ export default function ReportEventsView({ timeRange }: ReportEventsViewProps): 
               <span style={{ fontSize: 11, color: '#7ecfff', fontFamily: "'Share Tech Mono', monospace" }}>
                 {formatDateTime(replay.currentTs)}
               </span>
+
+              {viewTab === 'mission' && activeMoment && (
+                <span style={{ fontSize: 11, color: '#ffd60a', fontWeight: 700 }}>
+                  {activeMoment.title.toUpperCase()}
+                </span>
+              )}
               
               <div style={{ flex: 1 }} />
               

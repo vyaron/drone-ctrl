@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { DRONE_COLORS, formatTime, type Drone, type Event } from '../utils/droneUtils';
+import { type MissionMoment } from '../utils/missionReplay';
 
 interface HistoricalTimelineProps {
   event: Event;
@@ -7,6 +8,8 @@ interface HistoricalTimelineProps {
   currentTs: number;
   selected: Drone | null;
   onSelect: (drone: Drone | null) => void;
+  missionMoments?: MissionMoment[];
+  activeMomentId?: string | null;
 }
 
 // Format timestamp to readable string
@@ -20,7 +23,9 @@ export function HistoricalTimeline({
   drones, 
   currentTs, 
   selected, 
-  onSelect 
+  onSelect,
+  missionMoments = [],
+  activeMomentId = null,
 }: HistoricalTimelineProps): ReactElement {
   const LABEL_W = 260;
   const winStart = event.startedAt;
@@ -71,6 +76,29 @@ export function HistoricalTimeline({
 
       {/* Drone rows */}
       <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        {missionMoments.map(moment => {
+          const markerPos = ((moment.ts - winStart) / windowLen) * 100;
+          const isActiveMoment = moment.id === activeMomentId;
+
+          return (
+            <div
+              key={moment.id}
+              title={moment.title}
+              style={{
+                position: 'absolute',
+                left: `calc(${LABEL_W}px + ${markerPos}% * (100% - ${LABEL_W}px) / 100)`,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: isActiveMoment ? 'rgba(255,214,10,0.8)' : 'rgba(255,255,255,0.12)',
+                boxShadow: isActiveMoment ? '0 0 10px rgba(255,214,10,0.35)' : 'none',
+                pointerEvents: 'none',
+                zIndex: 5,
+              }}
+            />
+          );
+        })}
+
         {/* Current time marker */}
         <div style={{ 
           position: 'absolute',
