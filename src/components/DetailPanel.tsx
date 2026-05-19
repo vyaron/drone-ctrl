@@ -5,9 +5,10 @@ interface DetailPanelProps {
   selected: Drone | null;
   dronesRef: MutableRefObject<Drone[]>;
   onClose: () => void;
+  onOpenFootageView: (drone: Drone) => void;
 }
 
-function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactElement | null {
+function DetailPanel({ selected, dronesRef, onClose, onOpenFootageView }: DetailPanelProps): ReactElement | null {
   const [isVisible, setIsVisible] = useState(false);
   const [displayedDrone, setDisplayedDrone] = useState<Drone | null>(null);
   const [, setTick] = useState(0);
@@ -218,6 +219,27 @@ function DetailPanel({ selected, dronesRef, onClose }: DetailPanelProps): ReactE
               {sensor}
             </span>
           ))}
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <button
+            onClick={() => onOpenFootageView(drone)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: 5,
+              background: 'rgba(0,212,255,0.14)',
+              color: '#7ecfff',
+              border: '1px solid rgba(0,212,255,0.32)',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.2,
+              fontFamily: "'Share Tech Mono', monospace",
+              cursor: 'pointer',
+            }}
+          >
+            Drone Footage View
+          </button>
         </div>
       </div>
     </div>

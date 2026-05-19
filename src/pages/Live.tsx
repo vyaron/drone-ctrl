@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import DroneRow from '../components/DroneRow';
 import MapView from '../components/MapView';
 import DetailPanel from '../components/DetailPanel';
+import DroneFootageSplitView from '../components/DroneFootageSplitView';
 import { 
   WINDOW_SEC, 
   DRONE_MODELS, 
@@ -15,6 +16,7 @@ import {
   addFreqSample,
   type Drone,
 } from '../utils/droneUtils';
+import { type TrailPoint } from '../components/canvas';
 
 // Move bounds here for global drone movement
 const BOUNDS = { 
@@ -25,6 +27,9 @@ const BOUNDS = {
   threshold: 0.03 
 };
 
+const FOOTAGE_PATH_WINDOW_MS = 90000;
+const FOOTAGE_PATH_SAMPLE_INTERVAL_MS = 250;
+
 function Live(): ReactElement {
   const dronesRef = useRef<Drone[]>([]);
   const [drones, setDrones] = useState<Drone[]>([]);
@@ -33,10 +38,31 @@ function Live(): ReactElement {
   const [now, setNow] = useState(Date.now());
   const [running, setRunning] = useState(true);
   const [clock, setClock] = useState("");
+  const [isFootageViewOpen, setIsFootageViewOpen] = useState(false);
+  const [footageDroneId, setFootageDroneId] = useState<string | null>(null);
+  const [footagePathSnapshot, setFootagePathSnapshot] = useState<TrailPoint[]>([]);
+  const dronePathHistoryRef = useRef<Map<string, TrailPoint[]>>(new Map());
+  const dronePathLastSampleRef = useRef<Map<string, number>>(new Map());
   const location = useLocation();
   
   // Determine current view from route
   const currentPath = location.pathname.replace('/live', '').replace('/', '') || 'timeline';
+
+  const sampleDronePath = (drone: Drone, nowMs: number): void => {
+    const lastSample = dronePathLastSampleRef.current.get(drone.id) || 0;
+    if (nowMs - lastSample < FOOTAGE_PATH_SAMPLE_INTERVAL_MS) return;
+
+    const history = dronePathHistoryRef.current.get(drone.id) || [];
+    history.push({ ts: nowMs, lat: drone.lat, lon: drone.lon });
+
+    const minTs = nowMs - FOOTAGE_PATH_WINDOW_MS;
+    while (history.length > 0 && history[0].ts < minTs) {
+      history.shift();
+    }
+
+    dronePathHistoryRef.current.set(drone.id, history);
+    dronePathLastSampleRef.current.set(drone.id, nowMs);
+  };
 
   // Sync ref → state for React-driven UI
   useEffect(() => {
@@ -166,6 +192,14 @@ function Live(): ReactElement {
       dronesRef.current = dronesRef.current
         .map(d => d.status === "active" && Date.now() > d.detectedMs + d.durationMs ? { ...d, status: "left" as const } : d)
         .filter(d => d.detectedMs > cutoff);
+
+      const aliveIds = new Set(dronesRef.current.map(d => d.id));
+      for (const key of dronePathHistoryRef.current.keys()) {
+        if (!aliveIds.has(key)) dronePathHistoryRef.current.delete(key);
+      }
+      for (const key of dronePathLastSampleRef.current.keys()) {
+        if (!aliveIds.has(key)) dronePathLastSampleRef.current.delete(key);
+      }
     }, 600);
     return () => clearInterval(id);
   }, []);
@@ -179,6 +213,7 @@ function Live(): ReactElement {
     function moveDrones(ts: number) {
       const dt = lastTs ? Math.min(ts - lastTs, 100) : 16;
       lastTs = ts;
+      const nowMs = Date.now();
       
       dronesRef.current.forEach(d => {
         if (d.status !== "active") return;
@@ -212,6 +247,7 @@ function Live(): ReactElement {
           d.lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, d.lon)); 
         }
         d.heading = (Math.atan2(d.vLon, d.vLat) * 180 / Math.PI + 360) % 360;
+        sampleDronePath(d, nowMs);
       });
       
       raf = requestAnimationFrame(moveDrones);
@@ -220,6 +256,28 @@ function Live(): ReactElement {
     raf = requestAnimationFrame(moveDrones);
     return () => cancelAnimationFrame(raf);
   }, [running]);
+
+  const openFootageView = (drone: Drone) => {
+    sampleDronePath(drone, Date.now());
+    const snapshot = [...(dronePathHistoryRef.current.get(drone.id) || [])];
+    setFootagePathSnapshot(snapshot);
+    setFootageDroneId(drone.id);
+    setIsFootageViewOpen(true);
+  };
+
+  const closeFootageView = () => {
+    setIsFootageViewOpen(false);
+    setFootageDroneId(null);
+    setFootagePathSnapshot([]);
+  };
+
+  useEffect(() => {
+    if (!isFootageViewOpen || !footageDroneId) return;
+    const stillActive = drones.some(d => d.id === footageDroneId && d.status === 'active');
+    if (!stillActive) {
+      closeFootageView();
+    }
+  }, [isFootageViewOpen, footageDroneId, drones]);
 
   // Frequency sampling - add new freq samples every 250ms
   useEffect(() => {
@@ -359,9 +417,12 @@ function Live(): ReactElement {
     label: formatTime(winStart + i / 5 * (winEnd - winStart)) 
   }));
   const LABEL_W = 260;
+  const footageDrone = footageDroneId
+    ? drones.find(d => d.id === footageDroneId && d.status === 'active') || null
+    : null;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", position: 'relative' }}>
       {/* Header */}
       <div style={{ 
         padding: "10px 20px", 
@@ -573,8 +634,21 @@ function Live(): ReactElement {
         </Routes>
         </div>
 
-        <DetailPanel selected={selected} dronesRef={dronesRef} onClose={() => setSelected(null)}/>
+        <DetailPanel
+          selected={selected}
+          dronesRef={dronesRef}
+          onClose={() => setSelected(null)}
+          onOpenFootageView={openFootageView}
+        />
       </div>
+
+      {isFootageViewOpen && footageDrone && (
+        <DroneFootageSplitView
+          drone={footageDrone}
+          pathPoints={footagePathSnapshot}
+          onClose={closeFootageView}
+        />
+      )}
     </div>
   );
 }

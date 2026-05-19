@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
 import { project, SENSORS_BASE, type Drone, type Detection } from '../utils/droneUtils';
-import { drawGrid, drawProtectedZone, drawSensors, drawDrones, drawTrails, updateTrails, drawDirectionWedge, drawDetectionIndicators, hitTestWedge, type TrailPoint, type WedgeHitArea } from './canvas';
+import { drawGrid, drawProtectedZone, drawSensors, drawDrones, drawTrails, drawExplicitTrail, updateTrails, drawDirectionWedge, drawDetectionIndicators, hitTestWedge, type TrailPoint, type WedgeHitArea } from './canvas';
 import { DroneTooltip } from './DroneTooltip';
 import { TrailToggleButton } from './TrailToggleButton';
 
@@ -28,6 +28,9 @@ interface CanvasMapViewProps {
   detectionsRef?: MutableRefObject<Detection[]>;
   currentTs?: number;
   showHeadingIndicator?: boolean;
+  externalTrailPoints?: TrailPoint[];
+  forceShowTrails?: boolean;
+  hideTrailToggle?: boolean;
 }
 
 export function CanvasMapView({ 
@@ -39,7 +42,10 @@ export function CanvasMapView({
   paused = false,
   detectionsRef,
   currentTs,
-  showHeadingIndicator = true
+  showHeadingIndicator = true,
+  externalTrailPoints,
+  forceShowTrails = false,
+  hideTrailToggle = false
 }: CanvasMapViewProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -100,7 +106,7 @@ export function CanvasMapView({
       
       const drones = dronesRef.current;
       const selected = selectedRef.current;
-      const showTrails = showTrailsRef.current;
+      const showTrails = forceShowTrails || showTrailsRef.current;
 
       // Calculate dt for sensors and trails (0 when paused)
       const rawDt = lastTsRef.current ? Math.min(ts - lastTsRef.current, 100) : 16;
@@ -292,8 +298,12 @@ export function CanvasMapView({
 
       // Update and draw trails
       if (showTrails) {
-        updateTrails(trailsRef.current, visibleDrones, ts);
-        drawTrails(ctx, trailsRef.current, visibleDrones, w, h, ts, selected);
+        if (forceShowTrails && externalTrailPoints && selected) {
+          drawExplicitTrail(ctx, externalTrailPoints, selected, w, h, ts, selected);
+        } else {
+          updateTrails(trailsRef.current, visibleDrones, ts);
+          drawTrails(ctx, trailsRef.current, visibleDrones, w, h, ts, selected);
+        }
       }
 
       // Draw drones
@@ -353,7 +363,7 @@ export function CanvasMapView({
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <TrailToggleButton showTrails={showTrails} onToggle={handleToggleTrails} />
+      {!hideTrailToggle && <TrailToggleButton showTrails={showTrails} onToggle={handleToggleTrails} />}
 
       <canvas 
         ref={canvasRef}

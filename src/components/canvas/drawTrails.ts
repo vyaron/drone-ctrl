@@ -72,3 +72,30 @@ export function drawTrails(
     });
   });
 }
+
+export function drawExplicitTrail(
+  ctx: CanvasRenderingContext2D,
+  points: TrailPoint[],
+  drone: Drone,
+  w: number,
+  h: number,
+  ts: number,
+  selected: Drone | null
+): void {
+  if (points.length === 0) return;
+
+  const cfg = DRONE_COLORS[drone.colorIndex % DRONE_COLORS.length];
+  const isSel = selected?.id === drone.id;
+  const droneAlpha = selected && !isSel ? 0.15 : 1;
+
+  points.forEach((pt, idx) => {
+    if (idx === points.length - 1) return;
+    const age = ts - pt.ts;
+    const alpha = Math.max(0.15, 1 - age / TRAIL_DURATION) * 0.6 * droneAlpha;
+    const { x: px, y: py } = project(pt.lat, pt.lon, w, h);
+    ctx.beginPath();
+    ctx.arc(px, py, 1, 0, Math.PI * 2);
+    ctx.fillStyle = cfg.color + Math.round(alpha * 255).toString(16).padStart(2, '0');
+    ctx.fill();
+  });
+}

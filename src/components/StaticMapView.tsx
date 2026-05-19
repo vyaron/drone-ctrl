@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, type ReactElement } from 'react';
 import { type Drone, type Detection } from '../utils/droneUtils';
 import { CanvasMapView } from './CanvasMapView';
 import { GoogleMapView } from './GoogleMapView';
+import { type TrailPoint } from './canvas';
 
 interface StaticMapViewProps {
   drones: Drone[];
@@ -12,6 +13,9 @@ interface StaticMapViewProps {
   detections?: Detection[];  // For rendering direction/detection-level visualizations
   currentTs?: number;        // For filtering active detections
   showHeadingIndicator?: boolean;
+  externalTrailPoints?: TrailPoint[];
+  forceShowTrails?: boolean;
+  hideTrailToggle?: boolean;
 }
 
 // Wrapper that converts static drones array to ref for existing map components
@@ -23,7 +27,10 @@ export function StaticMapView({
   paused = false,
   detections = [],
   currentTs = Date.now(),
-  showHeadingIndicator = true
+  showHeadingIndicator = true,
+  externalTrailPoints,
+  forceShowTrails = false,
+  hideTrailToggle = false
 }: StaticMapViewProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const dronesRef = useRef<Drone[]>(drones);
@@ -61,6 +68,9 @@ export function StaticMapView({
           detectionsRef={detectionsRef}
           currentTs={currentTs}
           showHeadingIndicator={showHeadingIndicator}
+          externalTrailPoints={externalTrailPoints}
+          forceShowTrails={forceShowTrails}
+          hideTrailToggle={hideTrailToggle}
         />
       ) : (
         <GoogleMapView
