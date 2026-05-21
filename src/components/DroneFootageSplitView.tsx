@@ -260,7 +260,6 @@ export function DroneFootageSplitView({
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
               <video
                 ref={videoRef}
-                controls
                 autoPlay
                 muted
                 loop
