@@ -6,7 +6,7 @@
 
 Real-time drone detection and tracking dashboard with tactical and satellite map views.
 
-**[▶ Live Demo](https://vyaron.github.io/drone-ctrl)**
+
 
 ## Features
 
@@ -57,5 +57,5 @@ Automatically deploys to GitHub Pages on push to `main` branch.
 ---
 
 <p align="center">
-  <sub>Built with ⚡ by R2</sub>
+  <sub>Built with ⚡ by MisterBit</sub>
 </p>
